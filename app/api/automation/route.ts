@@ -1,24 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { DatabaseService, CheckResult } from "../../../lib/database";
 
-// Calculate next cron execution time (at 8:00, 12:00, 16:00: 0 8,12,16 * * *)
+// Calculate next cron execution time (daily at 12:00: 0 12 * * *)
 function getNextCronTime(): Date {
   const now = new Date();
   const nextRun = new Date(now);
 
-  const cronHours = [8, 12, 16];
-  const currentHour = now.getHours();
+  const cronHour = 12;
 
-  // Find next scheduled hour
-  let nextHour = cronHours.find((h) => h > currentHour);
-
-  if (nextHour === undefined) {
-    // No more runs today, schedule for first run tomorrow
+  if (now.getHours() >= cronHour) {
+    // Already past today's run, schedule for tomorrow
     nextRun.setDate(nextRun.getDate() + 1);
-    nextRun.setHours(cronHours[0], 0, 0, 0);
-  } else {
-    nextRun.setHours(nextHour, 0, 0, 0);
   }
+
+  nextRun.setHours(cronHour, 0, 0, 0);
 
   return nextRun;
 }

@@ -119,6 +119,43 @@ export default function Home() {
     fetchAutomationStatus();
   }, []);
 
+  // Background polling to trigger scheduled checks
+  useEffect(() => {
+    const pollInterval = 5 * 60 * 1000; // Poll every 5 minutes
+
+    const triggerScheduledCheck = async () => {
+      try {
+        const response = await fetch("/api/scheduled-check", {
+          headers: {
+            authorization: `Bearer ${
+              process.env.NEXT_PUBLIC_SCHEDULED_CHECK_SECRET ||
+              "your-secret-key"
+            }`,
+          },
+        });
+        const data = await response.json();
+
+        if (data.success) {
+          console.log("✅ Scheduled check completed:", data.message);
+          // Refresh automation status to show latest results
+          fetchAutomationStatus();
+        } else {
+          console.log("ℹ️ Scheduled check:", data.message || data.error);
+        }
+      } catch (error) {
+        console.error("Failed to trigger scheduled check:", error);
+      }
+    };
+
+    // Run immediately on mount
+    triggerScheduledCheck();
+
+    // Then poll at intervals
+    const intervalId = setInterval(triggerScheduledCheck, pollInterval);
+
+    return () => clearInterval(intervalId);
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!pdfUrl || !searchNumber) return;
@@ -204,7 +241,6 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Collapsible Manual Form Content */}
           {!isManualCollapsed && (
             <div className="p-6">
               <form onSubmit={handleSubmit} className="space-y-6">
@@ -269,7 +305,7 @@ export default function Home() {
         {/* Automation Controls */}
         <div className="mt-8 p-6 bg-blue-50 border border-blue-200 rounded-lg">
           <h2 className="text-xl text-gray-500 font-semibold text-blue-900 mb-4">
-            🕒 Automated Monitoring for Number 590698
+            🕒 Automated Monitoring
           </h2>
           <p className="text-blue-700 mb-4 text-sm">
             Automatic checking runs 3 times daily at 8:00, 12:00, and 16:00 to
@@ -277,7 +313,6 @@ export default function Home() {
             notification will be sent to
             <strong className="text-blue-900"> sa****19@gmail.com</strong> when
             the number is found.{" "}
-            <strong>Automation is always active and runs independently.</strong>
           </p>
           {automationStatus && (
             <div className="mb-4 p-3 bg-white rounded border">

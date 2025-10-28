@@ -24,7 +24,7 @@ export interface CheckResult {
   success: boolean;
   emailSent: boolean;
   contexts?: string[];
-  source: "manual" | "cron" | "auto";
+  source: "manual" | "cron" | "auto" | "scheduled";
   createdAt: Date;
 }
 
