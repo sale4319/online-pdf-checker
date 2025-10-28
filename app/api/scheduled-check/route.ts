@@ -84,39 +84,11 @@ export async function GET(request: NextRequest) {
     let pdfUrl: string;
 
     try {
-      // Try to scrape first (works locally and some environments)
-      try {
-        const embassyResponse = await fetch(`${baseUrl}/api/scrape-embassy`);
-
-        if (embassyResponse.ok) {
-          const embassyData = await embassyResponse.json();
-
-          if (embassyData.success && embassyData.pdfUrl) {
-            pdfUrl = embassyData.pdfUrl;
-            console.log("✅ Fetched PDF URL via scraping");
-
-            // Cache the PDF URL for future use on Vercel
-            try {
-              await fetch(`${baseUrl}/api/pdf-url`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ pdfUrl }),
-              });
-            } catch (cacheError) {
-              console.log("Could not cache PDF URL:", cacheError);
-            }
-          } else {
-            throw new Error("Scraping returned no PDF URL");
-          }
-        } else {
-          throw new Error(
-            `Scraping failed with status ${embassyResponse.status}`
-          );
-        }
-      } catch (scrapeError) {
-        // Scraping failed (blocked on Vercel), try cached URL
-        console.log("⚠️ Scraping failed, trying cached PDF URL...");
-
+      // On Vercel, use cached URL since scraping is blocked
+      // Locally, try scraping first
+      if (process.env.VERCEL_URL) {
+        // Running on Vercel - use cached URL
+        console.log("Running on Vercel, checking for cached PDF URL...");
         const pdfUrlResponse = await fetch(`${baseUrl}/api/pdf-url`);
         const pdfUrlData = await pdfUrlResponse.json();
 
@@ -124,7 +96,40 @@ export async function GET(request: NextRequest) {
           pdfUrl = pdfUrlData.pdfUrl;
           console.log("✅ Using cached PDF URL from database");
         } else {
-          throw new Error("Scraping blocked and no cached PDF URL available");
+          throw new Error(
+            "No cached PDF URL found. Please run 'Check Now' locally first to cache the URL."
+          );
+        }
+      } else {
+        // Running locally - scrape the embassy page
+        console.log("Running locally, scraping embassy page...");
+        const embassyResponse = await fetch(`${baseUrl}/api/scrape-embassy`);
+
+        if (!embassyResponse.ok) {
+          throw new Error(
+            `Embassy scraping failed with status ${embassyResponse.status}`
+          );
+        }
+
+        const embassyData = await embassyResponse.json();
+
+        if (!embassyData.success || !embassyData.pdfUrl) {
+          throw new Error("Failed to extract PDF URL from embassy page");
+        }
+
+        pdfUrl = embassyData.pdfUrl;
+        console.log("✅ Fetched PDF URL via scraping:", pdfUrl);
+
+        // Cache the PDF URL for Vercel
+        try {
+          await fetch(`${baseUrl}/api/pdf-url`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ pdfUrl }),
+          });
+          console.log("✅ Cached PDF URL in database");
+        } catch (cacheError) {
+          console.log("⚠️ Could not cache PDF URL:", cacheError);
         }
       }
     } catch (fetchError) {
