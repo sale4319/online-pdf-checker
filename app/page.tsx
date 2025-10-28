@@ -317,7 +317,7 @@ export default function Home() {
                       disabled={loadingEmbassy}
                       className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {loadingEmbassy ? "Fetching..." : "Auto-Fetch"}
+                      {loadingEmbassy ? "Fetching..." : "Fetch"}
                     </button>
                   </div>
                   <p className="mt-1 text-xs text-gray-400">
@@ -352,13 +352,12 @@ export default function Home() {
           )}
         </div>
 
-        {/* Automation Controls */}
         <div className="mt-8 p-6 bg-blue-50 border border-blue-200 rounded-lg">
           <h2 className="text-xl text-gray-500 font-semibold text-blue-900 mb-4">
             🕒 Automated Monitoring
           </h2>
           <p className="text-blue-700 mb-4 text-sm">
-            Automatic checking runs 3 times daily at 8:00, 12:00, and 16:00 to
+            Automatic checking runs 3 times daily at 9:00, 13:00, and 17:00 to
             monitor when the number appears in the embassy PDF. An email
             notification will be sent to
             <strong className="text-blue-900"> sa****19@gmail.com</strong> when
