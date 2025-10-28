@@ -111,34 +111,38 @@ export async function POST(request: NextRequest) {
       // Perform manual check
       const searchNumber = "590698";
 
-      // Construct base URL for internal API calls
-      const protocol = process.env.VERCEL_URL ? "https" : "http";
-      const host = process.env.VERCEL_URL || "localhost:3000";
-      const baseUrl = `${protocol}://${host}`;
-
       try {
         let pdfUrl: string;
 
         // On Vercel, use cached URL first since scraping is blocked
         // Locally, try scraping first
         if (process.env.VERCEL_URL) {
-          // Running on Vercel - use cached URL
+          // Running on Vercel - use cached URL directly from database
           console.log("Running on Vercel, checking for cached PDF URL...");
-          const pdfUrlResponse = await fetch(`${baseUrl}/api/pdf-url`);
-          const pdfUrlData = await pdfUrlResponse.json();
+          const automationStatus = await DatabaseService.getAutomationStatus();
 
-          if (pdfUrlData.success && pdfUrlData.pdfUrl) {
-            pdfUrl = pdfUrlData.pdfUrl;
-            console.log("✅ Using cached PDF URL from database");
-          } else {
-            throw new Error(
-              "No cached PDF URL found. Please run 'Check Now' locally first to cache the URL, or use Manual PDF Check to set it."
+          if (!automationStatus?.pdfUrl) {
+            console.error("No cached PDF URL found in database");
+            return NextResponse.json(
+              {
+                success: false,
+                error:
+                  "No cached PDF URL found. Please run 'Check Now' locally first to cache the PDF URL.",
+              },
+              { status: 500 }
             );
           }
+
+          pdfUrl = automationStatus.pdfUrl;
+          console.log("Using cached PDF URL:", pdfUrl);
         } else {
           // Running locally - scrape the embassy page
           console.log("Running locally, scraping embassy page...");
-          const embassyResponse = await fetch(`${baseUrl}/api/scrape-embassy`);
+
+          // For local calls, we can use relative URLs
+          const embassyResponse = await fetch(
+            `http://localhost:3000/api/scrape-embassy`
+          );
 
           if (!embassyResponse.ok) {
             throw new Error(
@@ -155,12 +159,13 @@ export async function POST(request: NextRequest) {
           pdfUrl = embassyData.pdfUrl;
           console.log("✅ Fetched PDF URL via scraping:", pdfUrl);
 
-          // Cache the PDF URL for Vercel
+          // Cache the PDF URL for Vercel to use
           try {
-            await fetch(`${baseUrl}/api/pdf-url`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ pdfUrl }),
+            await DatabaseService.upsertAutomationStatus({
+              isRunning: true,
+              searchNumber,
+              pdfUrl,
+              pdfUrlUpdatedAt: new Date(),
             });
             console.log("✅ Cached PDF URL in database");
           } catch (cacheError) {
@@ -168,23 +173,45 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Check PDF for the specific number
-        const pdfResponse = await fetch(`${baseUrl}/api/pdf-checker`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            pdfUrl,
-            searchNumber,
-          }),
-        });
+        // Check PDF for the specific number - do it directly to avoid HTTP call issues
+        console.log("Fetching and checking PDF...");
+        const pdfResponse = await fetch(pdfUrl);
 
         if (!pdfResponse.ok) {
-          throw new Error(
-            `PDF checker API returned status ${pdfResponse.status}`
-          );
+          throw new Error(`Failed to fetch PDF: ${pdfResponse.status}`);
         }
 
-        const pdfResult = await pdfResponse.json();
+        // Import pdf-extraction directly
+        // @ts-ignore
+        const extract = require("pdf-extraction");
+
+        const arrayBuffer = await pdfResponse.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        const data = await extract(buffer);
+        const text = data.text || "";
+
+        // Search for the number in the PDF
+        const searchPattern = new RegExp(searchNumber, "gi");
+        const matches = text.match(searchPattern);
+        const found = matches !== null && matches.length > 0;
+        const matchCount = matches ? matches.length : 0;
+
+        // Extract context around matches
+        const contexts: string[] = [];
+        if (found && matches) {
+          const lines = text.split("\n");
+          for (const line of lines) {
+            if (line.includes(searchNumber)) {
+              contexts.push(line.trim());
+            }
+          }
+        }
+
+        const pdfResult = {
+          found,
+          matchCount,
+          contexts: contexts.slice(0, 5), // Limit to 5 contexts
+        };
 
         const checkResultData = {
           timestamp: new Date(),
@@ -192,8 +219,8 @@ export async function POST(request: NextRequest) {
           searchNumber,
           found: pdfResult.found,
           matchCount: pdfResult.matchCount || 0,
-          error: pdfResult.error || null,
-          success: !pdfResult.error,
+          error: undefined,
+          success: true,
           emailSent: false,
           contexts: pdfResult.contexts || [],
           source: "manual" as const,
@@ -202,22 +229,36 @@ export async function POST(request: NextRequest) {
         // Send email notification if number is found
         if (checkResultData.found) {
           try {
-            const emailResponse = await fetch(`${baseUrl}/api/send-email`, {
+            // Call email API (this will work on both local and Vercel)
+            const emailBody = {
+              type: "found",
+              searchNumber,
+              pdfUrl,
+              matchCount: pdfResult.matchCount || 0,
+              timestamp: checkResultData.timestamp.toISOString(),
+              contexts: pdfResult.contexts || [],
+            };
+
+            // For Vercel, we need to use the external URL
+            const emailUrl = process.env.VERCEL_URL
+              ? `https://${process.env.VERCEL_URL}/api/send-email`
+              : "http://localhost:3000/api/send-email";
+
+            const emailResponse = await fetch(emailUrl, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                type: "found",
-                searchNumber,
-                pdfUrl,
-                matchCount: pdfResult.matchCount || 0,
-                timestamp: checkResultData.timestamp.toISOString(),
-                contexts: pdfResult.contexts || [],
-              }),
+              body: JSON.stringify(emailBody),
             });
 
             if (emailResponse.ok) {
               console.log("✅ Manual check: Email notification sent");
               checkResultData.emailSent = true;
+            } else {
+              console.log(
+                "⚠️ Email API returned:",
+                emailResponse.status,
+                await emailResponse.text()
+              );
             }
           } catch (emailError) {
             console.error("❌ Email sending error:", emailError);
@@ -280,6 +321,7 @@ export async function POST(request: NextRequest) {
             success: false,
             error: errorResultData.error,
             result: savedErrorResult,
+            details: checkError instanceof Error ? checkError.stack : undefined,
           },
           { status: 500 }
         );

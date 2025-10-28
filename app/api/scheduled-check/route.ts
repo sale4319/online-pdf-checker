@@ -75,35 +75,38 @@ export async function GET(request: NextRequest) {
     console.log("✅ Time to check! Performing automated PDF check...");
 
     const searchNumber = "590698";
-
-    // Construct base URL for internal API calls
-    const protocol = process.env.VERCEL_URL ? "https" : "http";
-    const host = process.env.VERCEL_URL || "localhost:3000";
-    const baseUrl = `${protocol}://${host}`;
-
     let pdfUrl: string;
 
     try {
-      // On Vercel, use cached URL since scraping is blocked
+      // On Vercel, use cached URL from database since scraping is blocked
       // Locally, try scraping first
       if (process.env.VERCEL_URL) {
-        // Running on Vercel - use cached URL
-        console.log("Running on Vercel, checking for cached PDF URL...");
-        const pdfUrlResponse = await fetch(`${baseUrl}/api/pdf-url`);
-        const pdfUrlData = await pdfUrlResponse.json();
+        // Running on Vercel - get cached URL directly from database
+        console.log(
+          "Running on Vercel, fetching cached PDF URL from database..."
+        );
+        const cachedStatus = await DatabaseService.getAutomationStatus();
 
-        if (pdfUrlData.success && pdfUrlData.pdfUrl) {
-          pdfUrl = pdfUrlData.pdfUrl;
-          console.log("✅ Using cached PDF URL from database");
-        } else {
-          throw new Error(
-            "No cached PDF URL found. Please run 'Check Now' locally first to cache the URL."
+        if (!cachedStatus?.pdfUrl) {
+          console.error("No cached PDF URL found in database");
+          return NextResponse.json(
+            {
+              success: false,
+              error:
+                "No cached PDF URL found. Please run 'Check Now' locally first to cache the PDF URL.",
+            },
+            { status: 500 }
           );
         }
+
+        pdfUrl = cachedStatus.pdfUrl;
+        console.log("✅ Using cached PDF URL from database");
       } else {
         // Running locally - scrape the embassy page
         console.log("Running locally, scraping embassy page...");
-        const embassyResponse = await fetch(`${baseUrl}/api/scrape-embassy`);
+        const embassyResponse = await fetch(
+          `http://localhost:3000/api/scrape-embassy`
+        );
 
         if (!embassyResponse.ok) {
           throw new Error(
@@ -120,18 +123,134 @@ export async function GET(request: NextRequest) {
         pdfUrl = embassyData.pdfUrl;
         console.log("✅ Fetched PDF URL via scraping:", pdfUrl);
 
-        // Cache the PDF URL for Vercel
+        // Cache the PDF URL for Vercel to use
         try {
-          await fetch(`${baseUrl}/api/pdf-url`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ pdfUrl }),
+          await DatabaseService.upsertAutomationStatus({
+            isRunning: true,
+            searchNumber,
+            pdfUrl,
+            pdfUrlUpdatedAt: new Date(),
           });
           console.log("✅ Cached PDF URL in database");
         } catch (cacheError) {
           console.log("⚠️ Could not cache PDF URL:", cacheError);
         }
       }
+
+      // Check PDF directly to avoid HTTP call issues
+      console.log("Fetching and checking PDF...");
+      const pdfResponse = await fetch(pdfUrl);
+
+      if (!pdfResponse.ok) {
+        throw new Error(`Failed to fetch PDF: ${pdfResponse.status}`);
+      }
+
+      // Import pdf-extraction directly
+      // @ts-ignore
+      const extract = require("pdf-extraction");
+
+      const arrayBuffer = await pdfResponse.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      const data = await extract(buffer);
+      const text = data.text || "";
+
+      // Search for the number in the PDF
+      const searchPattern = new RegExp(searchNumber, "gi");
+      const matches = text.match(searchPattern);
+      const found = matches !== null && matches.length > 0;
+      const matchCount = matches ? matches.length : 0;
+
+      // Extract context around matches
+      const contexts: string[] = [];
+      if (found && matches) {
+        const lines = text.split("\n");
+        for (const line of lines) {
+          if (line.includes(searchNumber)) {
+            contexts.push(line.trim());
+          }
+        }
+      }
+
+      const pdfResult = {
+        found,
+        matchCount,
+        contexts: contexts.slice(0, 5), // Limit to 5 contexts
+      };
+
+      const now = new Date();
+      const checkResult = {
+        timestamp: now,
+        pdfUrl,
+        searchNumber,
+        found: pdfResult.found,
+        matchCount: pdfResult.matchCount || 0,
+        error: undefined,
+        success: true,
+        emailSent: false,
+        contexts: pdfResult.contexts || [],
+        source: "scheduled" as const,
+      };
+
+      console.log(
+        `📊 Check completed. Number ${searchNumber} found: ${checkResult.found}`
+      );
+
+      // Send email notification if number is found
+      if (checkResult.found) {
+        try {
+          const emailUrl = process.env.VERCEL_URL
+            ? `https://${process.env.VERCEL_URL}/api/send-email`
+            : "http://localhost:3000/api/send-email";
+
+          const emailResponse = await fetch(emailUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              type: "found",
+              searchNumber,
+              pdfUrl,
+              matchCount: pdfResult.matchCount || 0,
+              timestamp: checkResult.timestamp.toISOString(),
+              contexts: pdfResult.contexts || [],
+            }),
+          });
+
+          if (emailResponse.ok) {
+            console.log("✅ Email notification sent successfully");
+            checkResult.emailSent = true;
+          } else {
+            console.error("❌ Failed to send email notification");
+          }
+        } catch (emailError) {
+          console.error("❌ Email sending error:", emailError);
+        }
+      }
+
+      // Save to database
+      const savedResult = await DatabaseService.addCheckResult(checkResult);
+
+      // Schedule next check at 8:00, 12:00, or 16:00
+      const nextCheck = getNextScheduledTime();
+
+      // Update automation status
+      await DatabaseService.upsertAutomationStatus({
+        isRunning: true,
+        searchNumber,
+        lastCheck: checkResult.timestamp,
+        nextCheck,
+        lastResult: savedResult,
+      });
+
+      console.log(
+        `✅ Scheduled check complete. Next check at ${nextCheck.toISOString()}`
+      );
+
+      return NextResponse.json({
+        success: true,
+        message: "Scheduled check completed",
+        result: checkResult,
+        nextCheck: nextCheck.toISOString(),
+      });
     } catch (fetchError) {
       console.error("❌ Failed to fetch PDF URL:", fetchError);
 
@@ -167,87 +286,6 @@ export async function GET(request: NextRequest) {
             : "Failed to fetch PDF URL",
       });
     }
-
-    // Check PDF for the specific number
-    const pdfResponse = await fetch(`${baseUrl}/api/pdf-checker`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        pdfUrl,
-        searchNumber,
-      }),
-    });
-
-    const pdfResult = await pdfResponse.json();
-
-    const checkResult = {
-      timestamp: now,
-      pdfUrl,
-      searchNumber,
-      found: pdfResult.found,
-      matchCount: pdfResult.matchCount || 0,
-      error: pdfResult.error || null,
-      success: !pdfResult.error,
-      emailSent: false,
-      contexts: pdfResult.contexts || [],
-      source: "scheduled" as const,
-    };
-
-    console.log(
-      `📊 Check completed. Number ${searchNumber} found: ${checkResult.found}`
-    );
-
-    // Send email notification if number is found
-    if (checkResult.found) {
-      try {
-        const emailResponse = await fetch(`${baseUrl}/api/send-email`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            type: "found",
-            searchNumber,
-            pdfUrl,
-            matchCount: pdfResult.matchCount || 0,
-            timestamp: checkResult.timestamp.toISOString(),
-            contexts: pdfResult.contexts || [],
-          }),
-        });
-
-        if (emailResponse.ok) {
-          console.log("✅ Email notification sent successfully");
-          checkResult.emailSent = true;
-        } else {
-          console.error("❌ Failed to send email notification");
-        }
-      } catch (emailError) {
-        console.error("❌ Email sending error:", emailError);
-      }
-    }
-
-    // Save the result
-    const savedResult = await DatabaseService.addCheckResult(checkResult);
-
-    // Calculate next scheduled check time (8:00, 12:00, or 16:00)
-    const nextCheckTime = getNextScheduledTime();
-
-    await DatabaseService.upsertAutomationStatus({
-      isRunning: true,
-      searchNumber,
-      lastCheck: now,
-      nextCheck: nextCheckTime,
-      lastResult: savedResult,
-    });
-
-    console.log(
-      `✅ Result saved. Next check scheduled for ${nextCheckTime.toISOString()}`
-    );
-
-    return NextResponse.json({
-      success: true,
-      message: "Scheduled check completed",
-      result: checkResult,
-      nextCheck: nextCheckTime.toISOString(),
-    });
   } catch (error) {
     console.error("❌ Scheduled check error:", error);
 
