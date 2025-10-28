@@ -51,11 +51,12 @@ async function performAutomatedCheck() {
       matchCount: pdfResult.matchCount,
       error: pdfResult.error || null,
       success: !pdfResult.error,
+      emailSent: false,
     };
 
     // Update automation state
     automationState.lastCheck = new Date();
-    automationState.nextCheck = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2 hours from now
+    automationState.nextCheck = new Date(Date.now() + 4 * 60 * 60 * 1000); // 4 hours from now
     automationState.lastResult = checkResult;
 
     // Add to history (keep last 50 checks)
@@ -68,6 +69,42 @@ async function performAutomatedCheck() {
       `Automated check completed. Number ${automationState.searchNumber} found: ${checkResult.found}`
     );
 
+    // Send email notification if number is found
+    if (checkResult.found) {
+      try {
+        const emailResponse = await fetch(
+          `${process.env.VERCEL_URL || "http://localhost:3000"}/api/send-email`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              type: "found",
+              searchNumber: automationState.searchNumber,
+              pdfUrl: embassyData.pdfUrl,
+              matchCount: pdfResult.matchCount,
+              timestamp: checkResult.timestamp,
+              contexts: pdfResult.contexts || [],
+            }),
+          }
+        );
+
+        if (emailResponse.ok) {
+          console.log(
+            `✅ Email notification sent for found number ${automationState.searchNumber}`
+          );
+          checkResult.emailSent = true;
+        } else {
+          console.error("❌ Failed to send email notification");
+          checkResult.emailSent = false;
+        }
+      } catch (emailError) {
+        console.error("❌ Email sending error:", emailError);
+        checkResult.emailSent = false;
+      }
+    }
+
     return checkResult;
   } catch (error) {
     console.error("Error in automated check:", error);
@@ -76,12 +113,38 @@ async function performAutomatedCheck() {
       timestamp: new Date(),
       error: error instanceof Error ? error.message : "Unknown error",
       success: false,
+      emailSent: false,
     };
 
     automationState.lastCheck = new Date();
-    automationState.nextCheck = new Date(Date.now() + 2 * 60 * 60 * 1000);
+    automationState.nextCheck = new Date(Date.now() + 4 * 60 * 60 * 1000);
     automationState.lastResult = errorResult;
     automationState.checkHistory.unshift(errorResult);
+
+    // Send email notification for critical errors (optional, can be enabled if needed)
+    // Uncomment the block below if you want to receive email notifications for errors too
+    /*
+    try {
+      await fetch(
+        `${process.env.VERCEL_URL || "http://localhost:3000"}/api/send-email`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            type: "error",
+            searchNumber: automationState.searchNumber,
+            timestamp: errorResult.timestamp,
+            error: errorResult.error,
+          }),
+        }
+      );
+      errorResult.emailSent = true;
+    } catch (emailError) {
+      console.error("Failed to send error notification email:", emailError);
+    }
+    */
 
     return errorResult;
   }
@@ -110,10 +173,10 @@ export async function POST(request: NextRequest) {
       // Perform immediate check
       await performAutomatedCheck();
 
-      // Set up interval for every 2 hours (2 * 60 * 60 * 1000 ms)
+      // Set up interval for every 4 hours (4 * 60 * 60 * 1000 ms)
       automationState.intervalId = setInterval(
         performAutomatedCheck,
-        2 * 60 * 60 * 1000
+        4 * 60 * 60 * 1000
       );
       automationState.isRunning = true;
 

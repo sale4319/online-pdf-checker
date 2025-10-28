@@ -1,4 +1,29 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Online PDF Number Checker
+
+This is a [Next.js](https://nextjs.org) application that monitors PDF files from the German Embassy Belgrade website and automatically searches for specific numbers. When a number is found, it sends email notifications.
+
+## Features
+
+- 🔍 **Automated PDF Monitoring**: Checks embassy PDFs every 4 hours for number 590698
+- 📧 **Email Notifications**: Sends notifications to sale4319@gmail.com when the number is found
+- 🌐 **Manual Search**: Search any PDF URL for specific numbers
+- 📱 **Real-time Status**: View automation status with collapsible details
+- 📊 **Check History**: Track all automated checks with timestamps and results
+
+## Email Configuration
+
+To enable email notifications, you need to set up Gmail credentials:
+
+1. Copy `.env.example` to `.env.local`
+2. Set up Gmail App Password:
+   - Go to [Google Account Settings](https://myaccount.google.com/apppasswords)
+   - Generate a new App Password for "Mail"
+   - Copy the 16-character password
+3. Update your `.env.local` file:
+   ```bash
+   EMAIL_USER=your_gmail@gmail.com
+   EMAIL_PASS=your_16_character_app_password
+   ```
 
 ## Getting Started
 
