@@ -121,31 +121,6 @@ async function performAutomatedCheck() {
     automationState.lastResult = errorResult;
     automationState.checkHistory.unshift(errorResult);
 
-    // Send email notification for critical errors (optional, can be enabled if needed)
-    // Uncomment the block below if you want to receive email notifications for errors too
-    /*
-    try {
-      await fetch(
-        `${process.env.VERCEL_URL || "http://localhost:3000"}/api/send-email`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            type: "error",
-            searchNumber: automationState.searchNumber,
-            timestamp: errorResult.timestamp,
-            error: errorResult.error,
-          }),
-        }
-      );
-      errorResult.emailSent = true;
-    } catch (emailError) {
-      console.error("Failed to send error notification email:", emailError);
-    }
-    */
-
     return errorResult;
   }
 }

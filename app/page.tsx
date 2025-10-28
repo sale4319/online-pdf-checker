@@ -9,11 +9,9 @@ export default function Home() {
   const [loadingEmbassy, setLoadingEmbassy] = useState(false);
   const [result, setResult] = useState<any>(null);
 
-  // Automation states
   const [automationStatus, setAutomationStatus] = useState<any>(null);
   const [loadingAutomation, setLoadingAutomation] = useState(false);
 
-  // Collapse states
   const [isManualCollapsed, setIsManualCollapsed] = useState(true);
 
   const handleAutoFetch = async () => {
@@ -153,35 +151,35 @@ export default function Home() {
     }
   };
 
-  const handleTestEmail = async () => {
-    setLoadingAutomation(true);
-    try {
-      const response = await fetch("/api/test-email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-      const data = await response.json();
+  // const handleTestEmail = async () => {
+  //   setLoadingAutomation(true);
+  //   try {
+  //     const response = await fetch("/api/test-email", {
+  //       method: "POST",
+  //       headers: { "Content-Type": "application/json" },
+  //     });
+  //     const data = await response.json();
 
-      if (data.success) {
-        setResult({
-          ...result,
-          emailTest: `✅ Test email sent successfully! Check sale4319@gmail.com inbox.`,
-        });
-      } else {
-        setResult({
-          ...result,
-          error: `Email test failed: ${data.details || data.error}`,
-        });
-      }
-    } catch (error) {
-      setResult({
-        ...result,
-        error: "Failed to test email configuration",
-      });
-    } finally {
-      setLoadingAutomation(false);
-    }
-  };
+  //     if (data.success) {
+  //       setResult({
+  //         ...result,
+  //         emailTest: `✅ Test email sent successfully! Check sale4319@gmail.com inbox.`,
+  //       });
+  //     } else {
+  //       setResult({
+  //         ...result,
+  //         error: `Email test failed: ${data.details || data.error}`,
+  //       });
+  //     }
+  //   } catch (error) {
+  //     setResult({
+  //       ...result,
+  //       error: "Failed to test email configuration",
+  //     });
+  //   } finally {
+  //     setLoadingAutomation(false);
+  //   }
+  // };
 
   // Load automation status on component mount
   useEffect(() => {
@@ -430,13 +428,13 @@ export default function Home() {
               {loadingAutomation ? "Stopping..." : "Stop Auto-Check"}
             </button>
 
-            <button
+            {/* <button
               onClick={handleTestEmail}
               disabled={loadingAutomation}
               className="px-4 py-2 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loadingAutomation ? "Testing..." : "Test Email"}
-            </button>
+            </button> */}
 
             <button
               onClick={handleCheckNow}
