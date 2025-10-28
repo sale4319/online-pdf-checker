@@ -4,7 +4,7 @@
 
 ### 1. Vercel Cron Configuration (`vercel.json`)
 
-- Cron job runs every 4 hours: `0 */4 * * *`
+- Cron job runs daily at 12:00 PM (noon): `0 12 * * *`
 - Calls `/api/cron/check-pdf` endpoint
 - Completely independent of server restarts
 

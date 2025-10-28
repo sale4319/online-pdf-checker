@@ -274,9 +274,9 @@ export default function Home() {
             🕒 Automated Monitoring for Number 590698
           </h2>
           <p className="text-blue-700 mb-4 text-sm">
-            Automatic checking runs every 4 hours via Vercel Cron to monitor
-            when your number appears in the embassy PDF. You'll receive an email
-            notification at
+            Automatic checking runs daily at 12:00 PM (noon) via Vercel Cron to
+            monitor when your number appears in the embassy PDF. You'll receive
+            an email notification at
             <strong className="text-blue-900"> sale4319@gmail.com</strong> when
             the number is found.{" "}
             <strong>Automation is always active and runs independently.</strong>

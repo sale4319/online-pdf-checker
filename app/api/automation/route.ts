@@ -11,20 +11,17 @@ let automationState = {
   checkHistory: [] as any[],
 };
 
-// Calculate next cron execution time (every 4 hours: 0 */4 * * *)
+// Calculate next cron execution time (daily at 12:00: 0 12 * * *)
 function getNextCronTime(): Date {
   const now = new Date();
   const nextRun = new Date(now);
 
-  // Find next 4-hour interval (0, 4, 8, 12, 16, 20)
-  const currentHour = now.getHours();
-  const nextHour = Math.ceil((currentHour + 1) / 4) * 4;
+  // Set to 12:00 (noon) today
+  nextRun.setHours(12, 0, 0, 0);
 
-  if (nextHour >= 24) {
+  // If it's already past 12:00 today, set to 12:00 tomorrow
+  if (now >= nextRun) {
     nextRun.setDate(nextRun.getDate() + 1);
-    nextRun.setHours(0, 0, 0, 0);
-  } else {
-    nextRun.setHours(nextHour, 0, 0, 0);
   }
 
   return nextRun;
