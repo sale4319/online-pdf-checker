@@ -1,19 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { DatabaseService } from "../../../lib/database";
 
-// Calculate next cron execution time (daily at 12:00: 0 12 * * *)
+// Calculate next scheduled check time (8:00, 12:00, or 16:00)
 function getNextCronTime(): Date {
   const now = new Date();
   const nextRun = new Date(now);
 
-  const cronHour = 12;
+  const scheduledHours = [8, 12, 16];
+  const currentHour = now.getHours();
 
-  if (now.getHours() >= cronHour) {
-    // Already past today's run, schedule for tomorrow
+  // Find next scheduled hour today
+  let nextHour = scheduledHours.find((h) => h > currentHour);
+
+  if (nextHour === undefined) {
+    // No more runs today, schedule for first run tomorrow
     nextRun.setDate(nextRun.getDate() + 1);
+    nextRun.setHours(scheduledHours[0], 0, 0, 0);
+  } else {
+    nextRun.setHours(nextHour, 0, 0, 0);
   }
-
-  nextRun.setHours(cronHour, 0, 0, 0);
 
   return nextRun;
 }
@@ -105,13 +110,22 @@ export async function POST(request: NextRequest) {
     } else if (action === "check-now") {
       // Perform manual check
       const searchNumber = "590698";
-      const baseUrl = process.env.VERCEL_URL
-        ? `https://${process.env.VERCEL_URL}`
-        : "http://localhost:3000";
+
+      // Construct base URL for internal API calls
+      const protocol = process.env.VERCEL_URL ? "https" : "http";
+      const host = process.env.VERCEL_URL || "localhost:3000";
+      const baseUrl = `${protocol}://${host}`;
 
       try {
         // Fetch PDF URL from embassy page
         const embassyResponse = await fetch(`${baseUrl}/api/scrape-embassy`);
+
+        if (!embassyResponse.ok) {
+          throw new Error(
+            `Embassy API returned status ${embassyResponse.status}`
+          );
+        }
+
         const embassyData = await embassyResponse.json();
 
         if (!embassyData.success) {
@@ -127,6 +141,12 @@ export async function POST(request: NextRequest) {
             searchNumber,
           }),
         });
+
+        if (!pdfResponse.ok) {
+          throw new Error(
+            `PDF checker API returned status ${pdfResponse.status}`
+          );
+        }
 
         const pdfResult = await pdfResponse.json();
 

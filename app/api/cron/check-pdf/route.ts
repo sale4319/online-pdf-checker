@@ -11,14 +11,13 @@ export async function GET(request: NextRequest) {
 
     console.log("🕒 Cron job triggered - performing automated PDF check...");
 
+    // Construct base URL for internal API calls
+    const protocol = process.env.VERCEL_URL ? "https" : "http";
+    const host = process.env.VERCEL_URL || "localhost:3000";
+    const baseUrl = `${protocol}://${host}`;
+
     // Fetch PDF URL from embassy page
-    const embassyResponse = await fetch(
-      `${
-        process.env.VERCEL_URL
-          ? `https://${process.env.VERCEL_URL}`
-          : "http://localhost:3000"
-      }/api/scrape-embassy`
-    );
+    const embassyResponse = await fetch(`${baseUrl}/api/scrape-embassy`);
     const embassyData = await embassyResponse.json();
 
     if (!embassyData.success) {
@@ -31,23 +30,16 @@ export async function GET(request: NextRequest) {
     }
 
     // Check PDF for the specific number
-    const pdfResponse = await fetch(
-      `${
-        process.env.VERCEL_URL
-          ? `https://${process.env.VERCEL_URL}`
-          : "http://localhost:3000"
-      }/api/pdf-checker`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          pdfUrl: embassyData.pdfUrl,
-          searchNumber: "590698",
-        }),
-      }
-    );
+    const pdfResponse = await fetch(`${baseUrl}/api/pdf-checker`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        pdfUrl: embassyData.pdfUrl,
+        searchNumber: "590698",
+      }),
+    });
 
     const pdfResult = await pdfResponse.json();
 
@@ -69,27 +61,20 @@ export async function GET(request: NextRequest) {
     // Send email notification if number is found
     if (checkResult.found) {
       try {
-        const emailResponse = await fetch(
-          `${
-            process.env.VERCEL_URL
-              ? `https://${process.env.VERCEL_URL}`
-              : "http://localhost:3000"
-          }/api/send-email`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              type: "found",
-              searchNumber: "590698",
-              pdfUrl: embassyData.pdfUrl,
-              matchCount: pdfResult.matchCount || 0,
-              timestamp: checkResult.timestamp,
-              contexts: pdfResult.contexts || [],
-            }),
-          }
-        );
+        const emailResponse = await fetch(`${baseUrl}/api/send-email`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            type: "found",
+            searchNumber: "590698",
+            pdfUrl: embassyData.pdfUrl,
+            matchCount: pdfResult.matchCount || 0,
+            timestamp: checkResult.timestamp,
+            contexts: pdfResult.contexts || [],
+          }),
+        });
 
         if (emailResponse.ok) {
           console.log("✅ Email notification sent successfully");

@@ -75,9 +75,11 @@ export async function GET(request: NextRequest) {
     console.log("✅ Time to check! Performing automated PDF check...");
 
     const searchNumber = "590698";
-    const baseUrl = process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : "http://localhost:3000";
+
+    // Construct base URL for internal API calls
+    const protocol = process.env.VERCEL_URL ? "https" : "http";
+    const host = process.env.VERCEL_URL || "localhost:3000";
+    const baseUrl = `${protocol}://${host}`;
 
     // Fetch PDF URL from embassy page
     const embassyResponse = await fetch(`${baseUrl}/api/scrape-embassy`);
