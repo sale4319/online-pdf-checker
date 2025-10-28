@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
         },
         body: JSON.stringify({
           pdfUrl: embassyData.pdfUrl,
-          searchNumber: "590698", // Hard-coded as requested
+          searchNumber: "590698",
         }),
       }
     );

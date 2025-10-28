@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { DatabaseService, CheckResult } from "../../../lib/database";
+import { DatabaseService } from "../../../lib/database";
 
 // Calculate next cron execution time (daily at 12:00: 0 12 * * *)
 function getNextCronTime(): Date {

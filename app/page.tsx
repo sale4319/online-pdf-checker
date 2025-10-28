@@ -96,7 +96,7 @@ export default function Home() {
       if (data.success) {
         setResult({
           ...result,
-          emailTest: `✅ Test email sent successfully! Check sale4319@gmail.com inbox.`,
+          emailTest: `✅ Test email sent successfully! Check sa****19@gmail.com inbox.`,
         });
       } else {
         setResult({
@@ -133,6 +133,15 @@ export default function Home() {
             }`,
           },
         });
+
+        // Check if response is ok before parsing JSON
+        if (!response.ok) {
+          console.error(
+            `Scheduled check failed with status: ${response.status}`
+          );
+          return;
+        }
+
         const data = await response.json();
 
         if (data.success) {
@@ -195,7 +204,6 @@ export default function Home() {
         </p>
 
         <div className="bg-white rounded-lg shadow">
-          {/* Manual Check Header */}
           <div
             className="p-6 border-b cursor-pointer flex justify-between items-center hover:bg-gray-50"
             onClick={() => setIsManualCollapsed(!isManualCollapsed)}
@@ -361,7 +369,7 @@ export default function Home() {
                           }`}
                         >
                           {automationStatus.lastResult.emailSent
-                            ? "📧 Email notification sent to sale4319@gmail.com"
+                            ? "📧 Email notification sent to sa****19@gmail.com"
                             : "📧 Email notification failed"}
                         </span>
                       </div>
@@ -437,7 +445,7 @@ export default function Home() {
                       }`}
                     >
                       {result.manualCheck.emailSent
-                        ? "📧 Email notification sent to sale4319@gmail.com"
+                        ? "📧 Email notification sent to sa****19@gmail.com"
                         : "📧 Email notification failed"}
                     </p>
                   )}
