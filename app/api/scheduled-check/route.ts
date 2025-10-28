@@ -81,19 +81,48 @@ export async function GET(request: NextRequest) {
     const host = process.env.VERCEL_URL || "localhost:3000";
     const baseUrl = `${protocol}://${host}`;
 
-    // Fetch PDF URL from embassy page
-    const embassyResponse = await fetch(`${baseUrl}/api/scrape-embassy`);
-    const embassyData = await embassyResponse.json();
+    let pdfUrl: string;
 
-    if (!embassyData.success) {
-      console.error("❌ Failed to fetch embassy PDF:", embassyData.error);
+    try {
+      // Try to get cached PDF URL first (for Vercel deployment)
+      const pdfUrlResponse = await fetch(`${baseUrl}/api/pdf-url`);
+      const pdfUrlData = await pdfUrlResponse.json();
+
+      if (pdfUrlData.success && pdfUrlData.pdfUrl) {
+        // Use cached PDF URL
+        pdfUrl = pdfUrlData.pdfUrl;
+        console.log("✅ Using cached PDF URL from database");
+      } else {
+        // Fallback to scraping (works locally)
+        const embassyResponse = await fetch(`${baseUrl}/api/scrape-embassy`);
+        const embassyData = await embassyResponse.json();
+
+        if (!embassyData.success) {
+          throw new Error(`Failed to fetch embassy PDF: ${embassyData.error}`);
+        }
+
+        pdfUrl = embassyData.pdfUrl;
+        console.log("✅ Fetched PDF URL via scraping");
+
+        // Cache the PDF URL for future use
+        await fetch(`${baseUrl}/api/pdf-url`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pdfUrl }),
+        });
+      }
+    } catch (fetchError) {
+      console.error("❌ Failed to fetch PDF URL:", fetchError);
 
       // Save error result
       await DatabaseService.addCheckResult({
         timestamp: new Date(),
         searchNumber,
         found: false,
-        error: `Failed to fetch embassy PDF: ${embassyData.error}`,
+        error:
+          fetchError instanceof Error
+            ? fetchError.message
+            : "Failed to fetch PDF URL",
         success: false,
         emailSent: false,
         source: "scheduled",
@@ -111,7 +140,10 @@ export async function GET(request: NextRequest) {
 
       return NextResponse.json({
         success: false,
-        error: `Failed to fetch embassy PDF: ${embassyData.error}`,
+        error:
+          fetchError instanceof Error
+            ? fetchError.message
+            : "Failed to fetch PDF URL",
       });
     }
 
@@ -120,7 +152,7 @@ export async function GET(request: NextRequest) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        pdfUrl: embassyData.pdfUrl,
+        pdfUrl,
         searchNumber,
       }),
     });
@@ -129,7 +161,7 @@ export async function GET(request: NextRequest) {
 
     const checkResult = {
       timestamp: now,
-      pdfUrl: embassyData.pdfUrl,
+      pdfUrl,
       searchNumber,
       found: pdfResult.found,
       matchCount: pdfResult.matchCount || 0,
@@ -153,7 +185,7 @@ export async function GET(request: NextRequest) {
           body: JSON.stringify({
             type: "found",
             searchNumber,
-            pdfUrl: embassyData.pdfUrl,
+            pdfUrl,
             matchCount: pdfResult.matchCount || 0,
             timestamp: checkResult.timestamp.toISOString(),
             contexts: pdfResult.contexts || [],

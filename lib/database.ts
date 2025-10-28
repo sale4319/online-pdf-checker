@@ -8,6 +8,8 @@ export interface AutomationStatus {
   lastCheck?: Date;
   nextCheck?: Date;
   lastResult?: CheckResult;
+  pdfUrl?: string; // Cached PDF URL to avoid scraping on Vercel
+  pdfUrlUpdatedAt?: Date; // When the PDF URL was last updated
   createdAt: Date;
   updatedAt: Date;
 }

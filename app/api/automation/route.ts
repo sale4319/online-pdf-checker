@@ -117,19 +117,43 @@ export async function POST(request: NextRequest) {
       const baseUrl = `${protocol}://${host}`;
 
       try {
-        // Fetch PDF URL from embassy page
-        const embassyResponse = await fetch(`${baseUrl}/api/scrape-embassy`);
+        let pdfUrl: string;
 
-        if (!embassyResponse.ok) {
-          throw new Error(
-            `Embassy API returned status ${embassyResponse.status}`
-          );
-        }
+        // Try to get cached PDF URL first (for Vercel deployment)
+        const pdfUrlResponse = await fetch(`${baseUrl}/api/pdf-url`);
+        const pdfUrlData = await pdfUrlResponse.json();
 
-        const embassyData = await embassyResponse.json();
+        if (pdfUrlData.success && pdfUrlData.pdfUrl) {
+          // Use cached PDF URL
+          pdfUrl = pdfUrlData.pdfUrl;
+          console.log("✅ Using cached PDF URL from database");
+        } else {
+          // Fallback to scraping (works locally)
+          const embassyResponse = await fetch(`${baseUrl}/api/scrape-embassy`);
 
-        if (!embassyData.success) {
-          throw new Error(`Failed to fetch embassy PDF: ${embassyData.error}`);
+          if (!embassyResponse.ok) {
+            throw new Error(
+              `Embassy API returned status ${embassyResponse.status}. Please set PDF URL manually using the Manual PDF Check section.`
+            );
+          }
+
+          const embassyData = await embassyResponse.json();
+
+          if (!embassyData.success) {
+            throw new Error(
+              `Failed to fetch embassy PDF: ${embassyData.error}. Please set PDF URL manually.`
+            );
+          }
+
+          pdfUrl = embassyData.pdfUrl;
+          console.log("✅ Fetched PDF URL via scraping");
+
+          // Cache the PDF URL for future use
+          await fetch(`${baseUrl}/api/pdf-url`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ pdfUrl }),
+          });
         }
 
         // Check PDF for the specific number
@@ -137,7 +161,7 @@ export async function POST(request: NextRequest) {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            pdfUrl: embassyData.pdfUrl,
+            pdfUrl,
             searchNumber,
           }),
         });
@@ -152,7 +176,7 @@ export async function POST(request: NextRequest) {
 
         const checkResultData = {
           timestamp: new Date(),
-          pdfUrl: embassyData.pdfUrl,
+          pdfUrl,
           searchNumber,
           found: pdfResult.found,
           matchCount: pdfResult.matchCount || 0,
@@ -172,7 +196,7 @@ export async function POST(request: NextRequest) {
               body: JSON.stringify({
                 type: "found",
                 searchNumber,
-                pdfUrl: embassyData.pdfUrl,
+                pdfUrl,
                 matchCount: pdfResult.matchCount || 0,
                 timestamp: checkResultData.timestamp.toISOString(),
                 contexts: pdfResult.contexts || [],
