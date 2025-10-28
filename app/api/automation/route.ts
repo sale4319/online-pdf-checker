@@ -119,41 +119,50 @@ export async function POST(request: NextRequest) {
       try {
         let pdfUrl: string;
 
-        // Try to get cached PDF URL first (for Vercel deployment)
-        const pdfUrlResponse = await fetch(`${baseUrl}/api/pdf-url`);
-        const pdfUrlData = await pdfUrlResponse.json();
-
-        if (pdfUrlData.success && pdfUrlData.pdfUrl) {
-          // Use cached PDF URL
-          pdfUrl = pdfUrlData.pdfUrl;
-          console.log("✅ Using cached PDF URL from database");
-        } else {
-          // Fallback to scraping (works locally)
+        // Try to scrape first (works locally and some environments)
+        try {
           const embassyResponse = await fetch(`${baseUrl}/api/scrape-embassy`);
 
-          if (!embassyResponse.ok) {
+          if (embassyResponse.ok) {
+            const embassyData = await embassyResponse.json();
+
+            if (embassyData.success && embassyData.pdfUrl) {
+              pdfUrl = embassyData.pdfUrl;
+              console.log("✅ Fetched PDF URL via scraping");
+
+              // Cache the PDF URL for future use on Vercel
+              try {
+                await fetch(`${baseUrl}/api/pdf-url`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ pdfUrl }),
+                });
+              } catch (cacheError) {
+                console.log("Could not cache PDF URL:", cacheError);
+              }
+            } else {
+              throw new Error("Scraping returned no PDF URL");
+            }
+          } else {
             throw new Error(
-              `Embassy API returned status ${embassyResponse.status}. Please set PDF URL manually using the Manual PDF Check section.`
+              `Scraping failed with status ${embassyResponse.status}`
             );
           }
+        } catch (scrapeError) {
+          // Scraping failed (blocked on Vercel), try cached URL
+          console.log("⚠️ Scraping failed, trying cached PDF URL...");
 
-          const embassyData = await embassyResponse.json();
+          const pdfUrlResponse = await fetch(`${baseUrl}/api/pdf-url`);
+          const pdfUrlData = await pdfUrlResponse.json();
 
-          if (!embassyData.success) {
+          if (pdfUrlData.success && pdfUrlData.pdfUrl) {
+            pdfUrl = pdfUrlData.pdfUrl;
+            console.log("✅ Using cached PDF URL from database");
+          } else {
             throw new Error(
-              `Failed to fetch embassy PDF: ${embassyData.error}. Please set PDF URL manually.`
+              `Scraping blocked and no cached PDF URL available. Please use Manual PDF Check to set the PDF URL.`
             );
           }
-
-          pdfUrl = embassyData.pdfUrl;
-          console.log("✅ Fetched PDF URL via scraping");
-
-          // Cache the PDF URL for future use
-          await fetch(`${baseUrl}/api/pdf-url`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ pdfUrl }),
-          });
         }
 
         // Check PDF for the specific number

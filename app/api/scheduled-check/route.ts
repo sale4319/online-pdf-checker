@@ -84,32 +84,48 @@ export async function GET(request: NextRequest) {
     let pdfUrl: string;
 
     try {
-      // Try to get cached PDF URL first (for Vercel deployment)
-      const pdfUrlResponse = await fetch(`${baseUrl}/api/pdf-url`);
-      const pdfUrlData = await pdfUrlResponse.json();
-
-      if (pdfUrlData.success && pdfUrlData.pdfUrl) {
-        // Use cached PDF URL
-        pdfUrl = pdfUrlData.pdfUrl;
-        console.log("✅ Using cached PDF URL from database");
-      } else {
-        // Fallback to scraping (works locally)
+      // Try to scrape first (works locally and some environments)
+      try {
         const embassyResponse = await fetch(`${baseUrl}/api/scrape-embassy`);
-        const embassyData = await embassyResponse.json();
 
-        if (!embassyData.success) {
-          throw new Error(`Failed to fetch embassy PDF: ${embassyData.error}`);
+        if (embassyResponse.ok) {
+          const embassyData = await embassyResponse.json();
+
+          if (embassyData.success && embassyData.pdfUrl) {
+            pdfUrl = embassyData.pdfUrl;
+            console.log("✅ Fetched PDF URL via scraping");
+
+            // Cache the PDF URL for future use on Vercel
+            try {
+              await fetch(`${baseUrl}/api/pdf-url`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ pdfUrl }),
+              });
+            } catch (cacheError) {
+              console.log("Could not cache PDF URL:", cacheError);
+            }
+          } else {
+            throw new Error("Scraping returned no PDF URL");
+          }
+        } else {
+          throw new Error(
+            `Scraping failed with status ${embassyResponse.status}`
+          );
         }
+      } catch (scrapeError) {
+        // Scraping failed (blocked on Vercel), try cached URL
+        console.log("⚠️ Scraping failed, trying cached PDF URL...");
 
-        pdfUrl = embassyData.pdfUrl;
-        console.log("✅ Fetched PDF URL via scraping");
+        const pdfUrlResponse = await fetch(`${baseUrl}/api/pdf-url`);
+        const pdfUrlData = await pdfUrlResponse.json();
 
-        // Cache the PDF URL for future use
-        await fetch(`${baseUrl}/api/pdf-url`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ pdfUrl }),
-        });
+        if (pdfUrlData.success && pdfUrlData.pdfUrl) {
+          pdfUrl = pdfUrlData.pdfUrl;
+          console.log("✅ Using cached PDF URL from database");
+        } else {
+          throw new Error("Scraping blocked and no cached PDF URL available");
+        }
       }
     } catch (fetchError) {
       console.error("❌ Failed to fetch PDF URL:", fetchError);
