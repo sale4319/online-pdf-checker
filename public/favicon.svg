@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" id="search-file">
+  <g>
+    <path fill="#c7e2fc" d="M55 56H21v2a4 4 0 0 1-4 4 4 4 0 0 1-4-4V6a4 4 0 0 0-4-4h40a6 6 0 0 1 6 6Z"></path>
+    <path fill="#dbedfd" d="M48 11.5A38.117 38.117 0 0 0 46.8 2H9a4 4 0 0 1 4 4v43.8a38.7 38.7 0 0 0 35-38.3Z"></path>
+    <path fill="#95aabd" d="M55 56H21v2a4 4 0 0 1-4 4h38a4 4 0 0 0 4-4v-2zM9 2a4 4 0 0 1 4 4v8H5V6a4 4 0 0 1 4-4z"></path>
+    <circle cx="28" cy="25" r="9" fill="#8892a0"></circle>
+    <path fill="#976947" d="M47.5 41.5 35.678 29.678a9.021 9.021 0 0 1-3 3L44.5 44.5a2.121 2.121 0 0 0 3-3Z"></path>
+    <circle cx="28" cy="25" r="5" fill="#fff"></circle>
+    <path fill="#ac876c" d="m40.368 34.368-4.69-4.69a9.021 9.021 0 0 1-3 3l4.954 4.954a38.769 38.769 0 0 0 2.736-3.264Z"></path>
+  </g>
+</svg>

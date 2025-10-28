@@ -217,7 +217,7 @@ export default function Home() {
                     value={pdfUrl}
                     onChange={(e) => setPdfUrl(e.target.value)}
                     placeholder="Enter the URL of the PDF file..."
-                    className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    className="block w-full px-3 text-gray-400 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 placeholder:text-gray-400"
                     required
                   />
                   <div className="mt-3 flex items-center justify-between">
@@ -231,9 +231,7 @@ export default function Home() {
                       disabled={loadingEmbassy}
                       className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {loadingEmbassy
-                        ? "Fetching..."
-                        : "Auto-fetch Embassy PDF"}
+                      {loadingEmbassy ? "Fetching..." : "Auto-Fetch"}
                     </button>
                   </div>
                   <p className="mt-1 text-xs text-gray-400">
@@ -251,7 +249,7 @@ export default function Home() {
                     value={searchNumber}
                     onChange={(e) => setSearchNumber(e.target.value)}
                     placeholder="Enter the number to search for..."
-                    className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    className="block w-full px-3 py-2 text-gray-400 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 placeholder:text-gray-400"
                     required
                   />
                 </div>
@@ -275,8 +273,8 @@ export default function Home() {
           </h2>
           <p className="text-blue-700 mb-4 text-sm">
             Automatic checking runs daily at 12:00 PM (noon) via Vercel Cron to
-            monitor when your number appears in the embassy PDF. You'll receive
-            an email notification at
+            monitor when the number appears in the embassy PDF. Email
+            notification will be sent at
             <strong className="text-blue-900"> sale4319@gmail.com</strong> when
             the number is found.{" "}
             <strong>Automation is always active and runs independently.</strong>
@@ -446,9 +444,6 @@ export default function Home() {
                   <p className="text-gray-500">
                     <strong>File Size:</strong>{" "}
                     {Math.round(result.fileSize / 1024)} KB
-                  </p>
-                  <p className="text-gray-500">
-                    <strong>Total Pages:</strong> {result.totalPages}
                   </p>
                   <p className="text-gray-500">
                     <strong>Search Number:</strong> {result.searchNumber}
