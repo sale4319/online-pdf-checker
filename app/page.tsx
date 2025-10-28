@@ -1,65 +1,461 @@
-import Image from "next/image";
+"use client";
+
+import { useState, useEffect } from "react";
 
 export default function Home() {
+  const [pdfUrl, setPdfUrl] = useState("");
+  const [searchNumber, setSearchNumber] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [loadingEmbassy, setLoadingEmbassy] = useState(false);
+  const [result, setResult] = useState<any>(null);
+
+  // Automation states
+  const [automationStatus, setAutomationStatus] = useState<any>(null);
+  const [loadingAutomation, setLoadingAutomation] = useState(false);
+
+  const handleAutoFetch = async () => {
+    setLoadingEmbassy(true);
+    try {
+      const response = await fetch("/api/scrape-embassy");
+      const data = await response.json();
+
+      if (data.success) {
+        setPdfUrl(data.pdfUrl);
+        setResult({
+          ...result,
+          autoFetchSuccess: `Successfully found PDF URL: ${data.pdfUrl}`,
+        });
+      } else {
+        setResult({
+          ...result,
+          error: data.error || "Failed to auto-fetch PDF URL",
+        });
+      }
+    } catch (error) {
+      setResult({
+        ...result,
+        error: "Failed to connect to embassy page",
+      });
+    } finally {
+      setLoadingEmbassy(false);
+    }
+  };
+
+  const fetchAutomationStatus = async () => {
+    try {
+      const response = await fetch("/api/automation");
+      const data = await response.json();
+      setAutomationStatus(data);
+    } catch (error) {
+      console.error("Failed to fetch automation status:", error);
+    }
+  };
+
+  const handleStartAutomation = async () => {
+    setLoadingAutomation(true);
+    try {
+      const response = await fetch("/api/automation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "start",
+          searchNumber: "590698",
+        }),
+      });
+      const data = await response.json();
+
+      if (data.success) {
+        setResult({
+          ...result,
+          autoSuccess: `Automation started! Will check for number 590698 every 2 hours.`,
+        });
+        fetchAutomationStatus();
+      } else {
+        setResult({
+          ...result,
+          error: data.error || "Failed to start automation",
+        });
+      }
+    } catch (error) {
+      setResult({
+        ...result,
+        error: "Failed to start automation",
+      });
+    } finally {
+      setLoadingAutomation(false);
+    }
+  };
+
+  const handleStopAutomation = async () => {
+    setLoadingAutomation(true);
+    try {
+      const response = await fetch("/api/automation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "stop" }),
+      });
+      const data = await response.json();
+
+      if (data.success) {
+        setResult({
+          ...result,
+          autoSuccess: "Automation stopped successfully.",
+        });
+        fetchAutomationStatus();
+      } else {
+        setResult({
+          ...result,
+          error: data.error || "Failed to stop automation",
+        });
+      }
+    } catch (error) {
+      setResult({
+        ...result,
+        error: "Failed to stop automation",
+      });
+    } finally {
+      setLoadingAutomation(false);
+    }
+  };
+
+  const handleCheckNow = async () => {
+    setLoadingAutomation(true);
+    try {
+      const response = await fetch("/api/automation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "check-now" }),
+      });
+      const data = await response.json();
+
+      if (data.success) {
+        setResult({
+          ...result,
+          manualCheck: data.result,
+        });
+        fetchAutomationStatus();
+      } else {
+        setResult({
+          ...result,
+          error: data.error || "Manual check failed",
+        });
+      }
+    } catch (error) {
+      setResult({
+        ...result,
+        error: "Failed to perform manual check",
+      });
+    } finally {
+      setLoadingAutomation(false);
+    }
+  };
+
+  // Load automation status on component mount
+  useEffect(() => {
+    fetchAutomationStatus();
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pdfUrl || !searchNumber) return;
+
+    setLoading(true);
+    setResult(null);
+
+    try {
+      const response = await fetch("/api/pdf-checker", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          pdfUrl,
+          searchNumber,
+        }),
+      });
+
+      const data = await response.json();
+      setResult(data);
+    } catch (error) {
+      setResult({ error: "Failed to process request" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+    <div className="min-h-screen bg-gray-50 py-12 px-4">
+      <div className="max-w-2xl mx-auto">
+        <h1 className="text-3xl font-bold text-gray-900 text-center mb-8">
+          Online PDF Number Checker
+        </h1>
+        <p className="text-center text-gray-600 mb-6">
+          Search for specific numbers in PDF files using their URL
+        </p>
+
+        <div className="bg-white rounded-lg shadow p-6">
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                PDF URL
+              </label>
+              <input
+                type="url"
+                value={pdfUrl}
+                onChange={(e) => setPdfUrl(e.target.value)}
+                placeholder="Enter the URL of the PDF file..."
+                className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                required
+              />
+              <div className="mt-3 flex items-center justify-between">
+                <p className="text-sm text-gray-500">
+                  Enter a direct link to a PDF file (e.g.,
+                  https://example.com/document.pdf)
+                </p>
+                <button
+                  type="button"
+                  onClick={handleAutoFetch}
+                  disabled={loadingEmbassy}
+                  className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loadingEmbassy ? "Fetching..." : "Auto-fetch Embassy PDF"}
+                </button>
+              </div>
+              <p className="mt-1 text-xs text-gray-400">
+                Use "Auto-fetch" to automatically get the latest PDF from the
+                German Embassy Belgrade page
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Search Number
+              </label>
+              <input
+                type="text"
+                value={searchNumber}
+                onChange={(e) => setSearchNumber(e.target.value)}
+                placeholder="Enter the number to search for..."
+                className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                required
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading || !pdfUrl || !searchNumber}
+              className="w-full py-2 px-4 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+              {loading ? "Processing..." : "Search PDF"}
+            </button>
+          </form>
+
+          {/* Automation Controls */}
+          <div className="mt-8 p-6 bg-blue-50 border border-blue-200 rounded-lg">
+            <h2 className="text-xl text-gray-500 font-semibold text-blue-900 mb-4">
+              Automated Monitoring for Number 590698
+            </h2>
+            <p className="text-blue-700 mb-4 text-sm">
+              Set up automatic checking every 2 hours to monitor when your
+              number appears in the embassy PDF.
+            </p>
+
+            {automationStatus && (
+              <div className="mb-4 p-3 bg-white rounded border">
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div className="text-gray-500">
+                    <strong>Status:</strong>
+                    <span
+                      className={`ml-1 ${
+                        automationStatus.isRunning
+                          ? "text-green-600"
+                          : "text-gray-600"
+                      }`}
+                    >
+                      {automationStatus.isRunning ? "Running" : "Stopped"}
+                    </span>
+                  </div>
+                  <div className="text-gray-500">
+                    <strong>Search Number:</strong>{" "}
+                    {automationStatus.searchNumber}
+                  </div>
+                  {automationStatus.lastCheck && (
+                    <div className="text-gray-500">
+                      <strong>Last Check:</strong>{" "}
+                      {new Date(automationStatus.lastCheck).toLocaleString()}
+                    </div>
+                  )}
+                  {automationStatus.nextCheck && (
+                    <div className="text-gray-500">
+                      <strong>Next Check:</strong>{" "}
+                      {new Date(automationStatus.nextCheck).toLocaleString()}
+                    </div>
+                  )}
+                  {automationStatus.lastResult && (
+                    <div className="col-span-2 text-gray-500">
+                      <strong>Last Result:</strong>
+                      <span
+                        className={`ml-1 ${
+                          automationStatus.lastResult.found
+                            ? "text-green-600 font-semibold"
+                            : "text-gray-600"
+                        }`}
+                      >
+                        {automationStatus.lastResult.found
+                          ? `✅ Number found! (${automationStatus.lastResult.matchCount} matches)`
+                          : "❌ Number not found"}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-3 flex-wrap">
+              <button
+                onClick={handleStartAutomation}
+                disabled={loadingAutomation || automationStatus?.isRunning}
+                className="px-4 py-2 bg-green-600 text-white font-medium rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loadingAutomation ? "Starting..." : "Start Auto-Check"}
+              </button>
+
+              <button
+                onClick={handleStopAutomation}
+                disabled={loadingAutomation || !automationStatus?.isRunning}
+                className="px-4 py-2 bg-red-600 text-white font-medium rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loadingAutomation ? "Stopping..." : "Stop Auto-Check"}
+              </button>
+
+              <button
+                onClick={handleCheckNow}
+                disabled={loadingAutomation}
+                className="px-4 py-2 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loadingAutomation ? "Checking..." : "Check Now"}
+              </button>
+
+              <button
+                onClick={fetchAutomationStatus}
+                disabled={loadingAutomation}
+                className="px-4 py-2 bg-gray-600 text-white font-medium rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Refresh Status
+              </button>
+            </div>
+          </div>
+
+          {result && (
+            <div className="mt-6 p-4 bg-gray-50 rounded-md">
+              {result.autoFetchSuccess && (
+                <div className="text-green-600 mb-4">
+                  <h3 className="font-semibold">Success:</h3>
+                  <p>{result.autoFetchSuccess}</p>
+                </div>
+              )}
+              {result.autoSuccess && (
+                <div className="text-green-600 mb-4">
+                  <h3 className="font-semibold">Automation:</h3>
+                  <p>{result.autoSuccess}</p>
+                </div>
+              )}
+              {result.manualCheck && (
+                <div className="text-blue-600 mb-4">
+                  <h3 className="font-semibold">Manual Check Result:</h3>
+                  <p>
+                    Number 590698{" "}
+                    {result.manualCheck.found
+                      ? `✅ FOUND! (${result.manualCheck.matchCount} matches)`
+                      : "❌ Not found"}{" "}
+                    - Checked at{" "}
+                    {new Date(result.manualCheck.timestamp).toLocaleString()}
+                  </p>
+                  {result.manualCheck.pdfUrl && (
+                    <p className="text-sm">
+                      PDF:{" "}
+                      <a
+                        href={result.manualCheck.pdfUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-500 hover:underline"
+                      >
+                        {result.manualCheck.pdfUrl}
+                      </a>
+                    </p>
+                  )}
+                </div>
+              )}
+              {result.error ? (
+                <div className="text-red-600">
+                  <h3 className="font-semibold">Error:</h3>
+                  <p>{result.error}</p>
+                </div>
+              ) : result.found !== undefined ? (
+                <div>
+                  <h3 className="font-semibold text-gray-500 mb-3">Results</h3>
+                  <div className="space-y-2">
+                    <p className="text-gray-500">
+                      <strong>PDF URL:</strong>
+                      <a
+                        href={result.pdfUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:text-blue-800 ml-1 break-all"
+                      >
+                        {result.pdfUrl}
+                      </a>
+                    </p>
+                    <p className="text-gray-500">
+                      <strong>File Size:</strong>{" "}
+                      {Math.round(result.fileSize / 1024)} KB
+                    </p>
+                    <p className="text-gray-500">
+                      <strong>Total Pages:</strong> {result.totalPages}
+                    </p>
+                    <p className="text-gray-500">
+                      <strong>Search Number:</strong> {result.searchNumber}
+                    </p>
+                    <p
+                      className={
+                        result.found ? "text-green-600" : "text-red-600"
+                      }
+                    >
+                      <strong>Found:</strong> {result.found ? "Yes" : "No"}
+                    </p>
+                    {result.found && (
+                      <>
+                        <p className="text-gray-500">
+                          <strong>Match Count:</strong> {result.matchCount}
+                        </p>
+                        {result.contexts.length > 0 && (
+                          <div>
+                            <h4 className="font-semibold text-gray-500 mt-4 mb-2">
+                              Context around matches:
+                            </h4>
+                            <div className="space-y-2">
+                              {result.contexts.map(
+                                (context: string, index: number) => (
+                                  <div
+                                    key={index}
+                                    className="bg-white p-3 rounded border text-sm"
+                                  >
+                                    <p className="text-gray-500">{context}</p>
+                                  </div>
+                                )
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          )}
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+      </div>
     </div>
   );
 }
