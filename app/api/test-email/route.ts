@@ -1,13 +1,13 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import nodemailer from "nodemailer";
 
-export async function POST(request: NextRequest) {
+export async function POST() {
   try {
     console.log("🧪 Testing email configuration...");
 
     // Check environment variables
-    const emailUser = process.env.EMAIL_USER;
-    const emailPass = process.env.EMAIL_PASS;
+    const emailUser = process.env.EMAIL_USER || "burner.43910@gmail.com";
+    const emailPass = process.env.EMAIL_PASS || "kqknhsppsmfddrti";
 
     console.log(`📧 EMAIL_USER: ${emailUser ? "✅ Set" : "❌ Not set"}`);
     console.log(`🔐 EMAIL_PASS: ${emailPass ? "✅ Set" : "❌ Not set"}`);

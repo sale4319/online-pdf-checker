@@ -7,8 +7,8 @@ const EMAIL_CONFIG = {
   port: 587,
   secure: false, // true for 465, false for other ports
   auth: {
-    user: process.env.EMAIL_USER || "burner.43910@gmail.com", // Gmail address
-    pass: process.env.EMAIL_PASS || "weojjwypqyofjbgz", // App password
+    user: process.env.EMAIL_USER || "burner.43910@gmail.com",
+    pass: process.env.EMAIL_PASS || "kqknhsppsmfddrti",
   },
   tls: {
     rejectUnauthorized: false,
