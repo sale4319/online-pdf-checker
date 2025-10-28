@@ -18,6 +18,15 @@ export default function Home() {
     setLoadingEmbassy(true);
     try {
       const response = await fetch("/api/scrape-embassy");
+
+      if (!response.ok) {
+        setResult({
+          ...result,
+          error: `Failed to fetch embassy page (status ${response.status})`,
+        });
+        return;
+      }
+
       const data = await response.json();
 
       if (data.success) {
@@ -45,6 +54,12 @@ export default function Home() {
   const fetchAutomationStatus = async () => {
     try {
       const response = await fetch("/api/automation");
+
+      if (!response.ok) {
+        console.error(`Failed to fetch automation status: ${response.status}`);
+        return;
+      }
+
       const data = await response.json();
       setAutomationStatus(data);
     } catch (error) {
@@ -60,6 +75,21 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "check-now" }),
       });
+
+      // Check if response is ok before parsing JSON
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(
+          `Manual check failed with status: ${response.status}`,
+          errorText
+        );
+        setResult({
+          ...result,
+          error: `Manual check failed with status ${response.status}`,
+        });
+        return;
+      }
+
       const data = await response.json();
 
       if (data.success) {
@@ -75,9 +105,12 @@ export default function Home() {
         });
       }
     } catch (error) {
+      console.error("Manual check error:", error);
       setResult({
         ...result,
-        error: "Failed to perform manual check",
+        error:
+          "Failed to perform manual check: " +
+          (error instanceof Error ? error.message : "Unknown error"),
       });
     } finally {
       setLoadingAutomation(false);
@@ -91,6 +124,15 @@ export default function Home() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
       });
+
+      if (!response.ok) {
+        setResult({
+          ...result,
+          error: `Email test failed with status ${response.status}`,
+        });
+        return;
+      }
+
       const data = await response.json();
 
       if (data.success) {
