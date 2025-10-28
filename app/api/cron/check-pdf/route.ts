@@ -1,18 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
+import { DatabaseService } from "../../../../lib/database";
 
 export async function GET(request: NextRequest) {
   try {
     // Verify this is actually a cron request (Vercel sets specific headers)
-    const cronSecret = request.headers.get('authorization');
+    const cronSecret = request.headers.get("authorization");
     if (cronSecret !== `Bearer ${process.env.CRON_SECRET}`) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     console.log("🕒 Cron job triggered - performing automated PDF check...");
 
     // Fetch PDF URL from embassy page
     const embassyResponse = await fetch(
-      `${process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000"}/api/scrape-embassy`
+      `${
+        process.env.VERCEL_URL
+          ? `https://${process.env.VERCEL_URL}`
+          : "http://localhost:3000"
+      }/api/scrape-embassy`
     );
     const embassyData = await embassyResponse.json();
 
@@ -27,7 +32,11 @@ export async function GET(request: NextRequest) {
 
     // Check PDF for the specific number
     const pdfResponse = await fetch(
-      `${process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000"}/api/pdf-checker`,
+      `${
+        process.env.VERCEL_URL
+          ? `https://${process.env.VERCEL_URL}`
+          : "http://localhost:3000"
+      }/api/pdf-checker`,
       {
         method: "POST",
         headers: {
@@ -61,7 +70,11 @@ export async function GET(request: NextRequest) {
     if (checkResult.found) {
       try {
         const emailResponse = await fetch(
-          `${process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000"}/api/send-email`,
+          `${
+            process.env.VERCEL_URL
+              ? `https://${process.env.VERCEL_URL}`
+              : "http://localhost:3000"
+          }/api/send-email`,
           {
             method: "POST",
             headers: {
@@ -91,23 +104,54 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Store the result (we'll update the automation API to store this)
+    // Store the result directly in MongoDB
     try {
-      await fetch(
-        `${process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000"}/api/automation`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            action: "store-result",
-            result: checkResult,
-          }),
-        }
-      );
+      const checkResultData = {
+        timestamp: new Date(checkResult.timestamp),
+        pdfUrl: checkResult.pdfUrl,
+        searchNumber: checkResult.searchNumber,
+        found: checkResult.found,
+        matchCount: checkResult.matchCount,
+        error: checkResult.error,
+        success: checkResult.success,
+        emailSent: checkResult.emailSent,
+        contexts: [],
+        source: "cron" as const,
+      };
+
+      // Save to database
+      const savedResult = await DatabaseService.addCheckResult(checkResultData);
+
+      // Calculate next cron time (at 8:00, 12:00, 16:00)
+      const now = new Date();
+      const nextRun = new Date(now);
+
+      const cronHours = [8, 12, 16];
+      const currentHour = now.getHours();
+
+      // Find next scheduled hour
+      let nextHour = cronHours.find((h) => h > currentHour);
+
+      if (nextHour === undefined) {
+        // No more runs today, schedule for first run tomorrow
+        nextRun.setDate(nextRun.getDate() + 1);
+        nextRun.setHours(cronHours[0], 0, 0, 0);
+      } else {
+        nextRun.setHours(nextHour, 0, 0, 0);
+      }
+
+      // Update automation status
+      await DatabaseService.upsertAutomationStatus({
+        isRunning: true,
+        searchNumber: checkResult.searchNumber,
+        lastCheck: checkResultData.timestamp,
+        nextCheck: nextRun,
+        lastResult: savedResult,
+      });
+
+      console.log("✅ Cron result saved to MongoDB successfully");
     } catch (storeError) {
-      console.error("Failed to store cron result:", storeError);
+      console.error("❌ Failed to store cron result in MongoDB:", storeError);
     }
 
     return NextResponse.json({
@@ -115,10 +159,9 @@ export async function GET(request: NextRequest) {
       message: "Cron check completed successfully",
       result: checkResult,
     });
-
   } catch (error) {
     console.error("❌ Cron job error:", error);
-    
+
     const errorResult = {
       timestamp: new Date().toISOString(),
       error: error instanceof Error ? error.message : "Unknown error",
@@ -126,29 +169,31 @@ export async function GET(request: NextRequest) {
       emailSent: false,
     };
 
-    // Try to store the error result
+    // Try to store the error result in MongoDB
     try {
-      await fetch(
-        `${process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000"}/api/automation`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            action: "store-result",
-            result: errorResult,
-          }),
-        }
-      );
+      const errorResultData = {
+        timestamp: new Date(errorResult.timestamp),
+        searchNumber: "590698",
+        found: false,
+        error: errorResult.error,
+        success: false,
+        emailSent: false,
+        source: "cron" as const,
+      };
+
+      await DatabaseService.addCheckResult(errorResultData);
+      console.log("✅ Cron error saved to MongoDB");
     } catch (storeError) {
-      console.error("Failed to store cron error result:", storeError);
+      console.error("❌ Failed to store cron error in MongoDB:", storeError);
     }
 
-    return NextResponse.json({
-      success: false,
-      error: error instanceof Error ? error.message : "Unknown error",
-      result: errorResult,
-    }, { status: 500 });
+    return NextResponse.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+        result: errorResult,
+      },
+      { status: 500 }
+    );
   }
 }

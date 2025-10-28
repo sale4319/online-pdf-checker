@@ -1,153 +1,76 @@
 import { NextRequest, NextResponse } from "next/server";
+import { DatabaseService, CheckResult } from "../../../lib/database";
 
-// In-memory storage for the automation status and results
-// With Vercel Cron, the automation is always running via scheduled jobs
-let automationState = {
-  isRunning: true, // Always true since Vercel Cron handles scheduling
-  lastCheck: null as Date | null,
-  nextCheck: null as Date | null, // Will be calculated based on cron schedule
-  lastResult: null as any,
-  searchNumber: "590698",
-  checkHistory: [] as any[],
-};
-
-// Calculate next cron execution time (daily at 12:00: 0 12 * * *)
+// Calculate next cron execution time (at 8:00, 12:00, 16:00: 0 8,12,16 * * *)
 function getNextCronTime(): Date {
   const now = new Date();
   const nextRun = new Date(now);
 
-  // Set to 12:00 (noon) today
-  nextRun.setHours(12, 0, 0, 0);
+  const cronHours = [8, 12, 16];
+  const currentHour = now.getHours();
 
-  // If it's already past 12:00 today, set to 12:00 tomorrow
-  if (now >= nextRun) {
+  // Find next scheduled hour
+  let nextHour = cronHours.find((h) => h > currentHour);
+
+  if (nextHour === undefined) {
+    // No more runs today, schedule for first run tomorrow
     nextRun.setDate(nextRun.getDate() + 1);
+    nextRun.setHours(cronHours[0], 0, 0, 0);
+  } else {
+    nextRun.setHours(nextHour, 0, 0, 0);
   }
 
   return nextRun;
 }
-
-// Update next check time
-automationState.nextCheck = getNextCronTime();
-
-// Function to perform a manual check (used by "Check Now" button)
-async function performManualCheck() {
+export async function GET() {
   try {
-    console.log("Performing manual PDF check...");
+    // Get automation status and recent checks from database
+    const automationStatus = await DatabaseService.getAutomationStatus();
+    const recentChecks = await DatabaseService.getRecentChecks(10);
+    const totalChecks = await DatabaseService.getCheckCount();
 
-    // Fetch PDF URL from embassy page
-    const embassyResponse = await fetch(
-      `${
-        process.env.VERCEL_URL
-          ? `https://${process.env.VERCEL_URL}`
-          : "http://localhost:3000"
-      }/api/scrape-embassy`
-    );
-    const embassyData = await embassyResponse.json();
+    // Initialize default status if none exists
+    if (!automationStatus) {
+      const defaultStatus = await DatabaseService.upsertAutomationStatus({
+        isRunning: true,
+        searchNumber: "590698",
+        nextCheck: getNextCronTime(),
+      });
 
-    if (!embassyData.success) {
-      throw new Error(`Failed to fetch embassy PDF: ${embassyData.error}`);
+      return NextResponse.json({
+        isRunning: defaultStatus.isRunning,
+        searchNumber: defaultStatus.searchNumber,
+        lastCheck: defaultStatus.lastCheck,
+        nextCheck: defaultStatus.nextCheck,
+        lastResult: defaultStatus.lastResult,
+        checkHistory: recentChecks,
+        totalChecks,
+      });
     }
 
-    // Check PDF for the specific number
-    const pdfResponse = await fetch(
-      `${
-        process.env.VERCEL_URL
-          ? `https://${process.env.VERCEL_URL}`
-          : "http://localhost:3000"
-      }/api/pdf-checker`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          pdfUrl: embassyData.pdfUrl,
-          searchNumber: automationState.searchNumber,
-        }),
-      }
-    );
-
-    const pdfResult = await pdfResponse.json();
-
-    const checkResult = {
-      timestamp: new Date().toISOString(),
-      pdfUrl: embassyData.pdfUrl,
-      searchNumber: automationState.searchNumber,
-      found: pdfResult.found,
-      matchCount: pdfResult.matchCount || 0,
-      error: pdfResult.error || null,
-      success: !pdfResult.error,
-      emailSent: false,
-    };
-
-    // Send email notification if number is found
-    if (checkResult.found) {
-      try {
-        const emailResponse = await fetch(
-          `${
-            process.env.VERCEL_URL
-              ? `https://${process.env.VERCEL_URL}`
-              : "http://localhost:3000"
-          }/api/send-email`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              type: "found",
-              searchNumber: automationState.searchNumber,
-              pdfUrl: embassyData.pdfUrl,
-              matchCount: pdfResult.matchCount || 0,
-              timestamp: checkResult.timestamp,
-              contexts: pdfResult.contexts || [],
-            }),
-          }
-        );
-
-        if (emailResponse.ok) {
-          console.log("✅ Manual check: Email notification sent");
-          checkResult.emailSent = true;
-        } else {
-          console.error("❌ Manual check: Failed to send email notification");
-          checkResult.emailSent = false;
-        }
-      } catch (emailError) {
-        console.error("❌ Manual check: Email sending error:", emailError);
-        checkResult.emailSent = false;
-      }
-    }
-
-    // Update state and history
-    automationState.lastCheck = new Date(checkResult.timestamp);
-    automationState.lastResult = checkResult;
-    automationState.checkHistory.unshift(checkResult);
-
-    // Keep last 50 checks
-    if (automationState.checkHistory.length > 50) {
-      automationState.checkHistory = automationState.checkHistory.slice(0, 50);
-    }
-
-    console.log(
-      `Manual check completed. Number ${automationState.searchNumber} found: ${checkResult.found}`
-    );
-    return checkResult;
+    return NextResponse.json({
+      isRunning: automationStatus.isRunning,
+      searchNumber: automationStatus.searchNumber,
+      lastCheck: automationStatus.lastCheck,
+      nextCheck: automationStatus.nextCheck,
+      lastResult: automationStatus.lastResult,
+      checkHistory: recentChecks,
+      totalChecks,
+    });
   } catch (error) {
-    console.error("Error in manual check:", error);
+    console.error("Failed to get automation status:", error);
 
-    const errorResult = {
-      timestamp: new Date().toISOString(),
-      error: error instanceof Error ? error.message : "Unknown error",
-      success: false,
-      emailSent: false,
-    };
-
-    automationState.lastCheck = new Date(errorResult.timestamp);
-    automationState.lastResult = errorResult;
-    automationState.checkHistory.unshift(errorResult);
-
-    return errorResult;
+    // Return default status on database error
+    return NextResponse.json({
+      isRunning: true,
+      searchNumber: "590698",
+      lastCheck: null,
+      nextCheck: getNextCronTime(),
+      lastResult: null,
+      checkHistory: [],
+      totalChecks: 0,
+      error: "Database connection failed, showing default status",
+    });
   }
 }
 
@@ -159,60 +82,168 @@ export async function POST(request: NextRequest) {
     if (action === "store-result") {
       // Store result from cron job
       if (result) {
-        automationState.lastCheck = new Date(result.timestamp);
-        automationState.lastResult = result;
-        automationState.nextCheck = getNextCronTime();
+        const checkResultData = {
+          ...result,
+          timestamp: new Date(result.timestamp),
+          source: "cron" as const,
+        };
 
-        // Add to history (keep last 50 checks)
-        automationState.checkHistory.unshift(result);
-        if (automationState.checkHistory.length > 50) {
-          automationState.checkHistory = automationState.checkHistory.slice(
-            0,
-            50
-          );
-        }
+        // Save to database
+        const savedResult = await DatabaseService.addCheckResult(
+          checkResultData
+        );
+
+        // Update automation status
+        await DatabaseService.upsertAutomationStatus({
+          isRunning: true,
+          searchNumber: result.searchNumber || "590698",
+          lastCheck: checkResultData.timestamp,
+          nextCheck: getNextCronTime(),
+          lastResult: savedResult,
+        });
+
+        return NextResponse.json({
+          success: true,
+          message: "Result stored successfully in MongoDB",
+        });
       }
-
-      return NextResponse.json({
-        success: true,
-        message: "Result stored successfully",
-      });
     } else if (action === "check-now") {
-      // Perform immediate manual check
-      const result = await performManualCheck();
+      // Perform manual check
+      const searchNumber = "590698";
+      const baseUrl = process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : "http://localhost:3000";
 
-      return NextResponse.json({
-        success: true,
-        message: "Manual check completed",
-        result,
-      });
-    } else {
-      return NextResponse.json(
-        {
-          error: "Invalid action. Use 'check-now' or 'store-result'",
-        },
-        { status: 400 }
-      );
+      try {
+        // Fetch PDF URL from embassy page
+        const embassyResponse = await fetch(`${baseUrl}/api/scrape-embassy`);
+        const embassyData = await embassyResponse.json();
+
+        if (!embassyData.success) {
+          throw new Error(`Failed to fetch embassy PDF: ${embassyData.error}`);
+        }
+
+        // Check PDF for the specific number
+        const pdfResponse = await fetch(`${baseUrl}/api/pdf-checker`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            pdfUrl: embassyData.pdfUrl,
+            searchNumber,
+          }),
+        });
+
+        const pdfResult = await pdfResponse.json();
+
+        const checkResultData = {
+          timestamp: new Date(),
+          pdfUrl: embassyData.pdfUrl,
+          searchNumber,
+          found: pdfResult.found,
+          matchCount: pdfResult.matchCount || 0,
+          error: pdfResult.error || null,
+          success: !pdfResult.error,
+          emailSent: false,
+          contexts: pdfResult.contexts || [],
+          source: "manual" as const,
+        };
+
+        // Send email notification if number is found
+        if (checkResultData.found) {
+          try {
+            const emailResponse = await fetch(`${baseUrl}/api/send-email`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                type: "found",
+                searchNumber,
+                pdfUrl: embassyData.pdfUrl,
+                matchCount: pdfResult.matchCount || 0,
+                timestamp: checkResultData.timestamp.toISOString(),
+                contexts: pdfResult.contexts || [],
+              }),
+            });
+
+            if (emailResponse.ok) {
+              console.log("✅ Manual check: Email notification sent");
+              checkResultData.emailSent = true;
+            }
+          } catch (emailError) {
+            console.error("❌ Email sending error:", emailError);
+          }
+        }
+
+        // Save to database
+        const savedResult = await DatabaseService.addCheckResult(
+          checkResultData
+        );
+
+        // Update automation status
+        await DatabaseService.upsertAutomationStatus({
+          isRunning: true,
+          searchNumber,
+          lastCheck: checkResultData.timestamp,
+          nextCheck: getNextCronTime(),
+          lastResult: savedResult,
+        });
+
+        console.log(
+          `✅ Manual check saved to MongoDB. Number ${searchNumber} found: ${checkResultData.found}`
+        );
+
+        return NextResponse.json({
+          success: true,
+          message: "Manual check completed and saved to MongoDB",
+          result: savedResult,
+        });
+      } catch (checkError) {
+        console.error("Error in manual check:", checkError);
+
+        const errorResultData = {
+          timestamp: new Date(),
+          searchNumber,
+          found: false,
+          error:
+            checkError instanceof Error ? checkError.message : "Unknown error",
+          success: false,
+          emailSent: false,
+          source: "manual" as const,
+        };
+
+        // Save error to database
+        const savedErrorResult = await DatabaseService.addCheckResult(
+          errorResultData
+        );
+
+        // Update automation status with error
+        await DatabaseService.upsertAutomationStatus({
+          isRunning: true,
+          searchNumber,
+          lastCheck: errorResultData.timestamp,
+          nextCheck: getNextCronTime(),
+          lastResult: savedErrorResult,
+        });
+
+        return NextResponse.json(
+          {
+            success: false,
+            error: errorResultData.error,
+            result: savedErrorResult,
+          },
+          { status: 500 }
+        );
+      }
     }
+
+    return NextResponse.json({ error: "Invalid action" }, { status: 400 });
   } catch (error) {
     console.error("Automation API error:", error);
     return NextResponse.json(
       {
         error: "Failed to process automation request",
+        details: error instanceof Error ? error.message : "Unknown error",
       },
       { status: 500 }
     );
   }
-}
-
-export async function GET() {
-  return NextResponse.json({
-    isRunning: automationState.isRunning,
-    searchNumber: automationState.searchNumber,
-    lastCheck: automationState.lastCheck,
-    nextCheck: automationState.nextCheck,
-    lastResult: automationState.lastResult,
-    checkHistory: automationState.checkHistory.slice(0, 10), // Return last 10 checks
-    totalChecks: automationState.checkHistory.length,
-  });
 }

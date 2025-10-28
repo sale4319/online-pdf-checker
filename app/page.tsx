@@ -151,10 +151,10 @@ export default function Home() {
     <div className="min-h-screen bg-gray-50 py-12 px-4">
       <div className="max-w-2xl mx-auto">
         <h1 className="text-3xl font-bold text-gray-900 text-center mb-8">
-          Online PDF Number Checker
+          Automated List Checker
         </h1>
         <p className="text-center text-gray-600 mb-6">
-          Search for specific numbers in PDF files using their URL
+          Search for specific numbers in PDF files
         </p>
 
         <div className="bg-white rounded-lg shadow">
@@ -272,10 +272,10 @@ export default function Home() {
             🕒 Automated Monitoring for Number 590698
           </h2>
           <p className="text-blue-700 mb-4 text-sm">
-            Automatic checking runs daily at 12:00 PM (noon) via Vercel Cron to
-            monitor when the number appears in the embassy PDF. Email
-            notification will be sent at
-            <strong className="text-blue-900"> sale4319@gmail.com</strong> when
+            Automatic checking runs 3 times daily at 8:00, 12:00, and 16:00 to
+            monitor when the number appears in the embassy PDF. An email
+            notification will be sent to
+            <strong className="text-blue-900"> sa****19@gmail.com</strong> when
             the number is found.{" "}
             <strong>Automation is always active and runs independently.</strong>
           </p>
@@ -284,9 +284,7 @@ export default function Home() {
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div className="text-gray-500">
                   <strong>Status:</strong>
-                  <span className="ml-1 text-green-600">
-                    🕒 Always Active (Vercel Cron)
-                  </span>
+                  <span className="ml-1 text-green-600">🕒 Always Active</span>
                 </div>
                 <div className="text-gray-500">
                   <strong>Search Number:</strong>{" "}
@@ -347,14 +345,6 @@ export default function Home() {
               >
                 {loadingAutomation ? "Checking..." : "Check Now"}
               </button>
-
-              <button
-                onClick={fetchAutomationStatus}
-                disabled={loadingAutomation}
-                className="px-4 py-2 bg-gray-600 text-white font-medium rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Refresh Status
-              </button>
             </div>
             <button
               onClick={handleTestEmail}
@@ -394,8 +384,11 @@ export default function Home() {
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-blue-500 hover:underline"
+                      title={result.manualCheck.pdfUrl}
                     >
-                      {result.manualCheck.pdfUrl}
+                      {result.manualCheck.pdfUrl.length > 50
+                        ? `${result.manualCheck.pdfUrl.substring(0, 40)}...`
+                        : result.manualCheck.pdfUrl}
                     </a>
                   </p>
                 )}
