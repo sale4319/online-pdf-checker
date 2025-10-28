@@ -1,24 +1,50 @@
 import { NextRequest, NextResponse } from "next/server";
 
 // In-memory storage for the automation status and results
-// In a production environment, you'd want to use a database
+// With Vercel Cron, the automation is always running via scheduled jobs
 let automationState = {
-  isRunning: false,
+  isRunning: true, // Always true since Vercel Cron handles scheduling
   lastCheck: null as Date | null,
-  nextCheck: null as Date | null,
+  nextCheck: null as Date | null, // Will be calculated based on cron schedule
   lastResult: null as any,
   searchNumber: "590698",
-  intervalId: null as NodeJS.Timeout | null,
   checkHistory: [] as any[],
 };
 
-async function performAutomatedCheck() {
+// Calculate next cron execution time (every 4 hours: 0 */4 * * *)
+function getNextCronTime(): Date {
+  const now = new Date();
+  const nextRun = new Date(now);
+
+  // Find next 4-hour interval (0, 4, 8, 12, 16, 20)
+  const currentHour = now.getHours();
+  const nextHour = Math.ceil((currentHour + 1) / 4) * 4;
+
+  if (nextHour >= 24) {
+    nextRun.setDate(nextRun.getDate() + 1);
+    nextRun.setHours(0, 0, 0, 0);
+  } else {
+    nextRun.setHours(nextHour, 0, 0, 0);
+  }
+
+  return nextRun;
+}
+
+// Update next check time
+automationState.nextCheck = getNextCronTime();
+
+// Function to perform a manual check (used by "Check Now" button)
+async function performManualCheck() {
   try {
-    console.log("Performing automated PDF check...");
+    console.log("Performing manual PDF check...");
 
     // Fetch PDF URL from embassy page
     const embassyResponse = await fetch(
-      `${process.env.VERCEL_URL || "http://localhost:3000"}/api/scrape-embassy`
+      `${
+        process.env.VERCEL_URL
+          ? `https://${process.env.VERCEL_URL}`
+          : "http://localhost:3000"
+      }/api/scrape-embassy`
     );
     const embassyData = await embassyResponse.json();
 
@@ -28,7 +54,11 @@ async function performAutomatedCheck() {
 
     // Check PDF for the specific number
     const pdfResponse = await fetch(
-      `${process.env.VERCEL_URL || "http://localhost:3000"}/api/pdf-checker`,
+      `${
+        process.env.VERCEL_URL
+          ? `https://${process.env.VERCEL_URL}`
+          : "http://localhost:3000"
+      }/api/pdf-checker`,
       {
         method: "POST",
         headers: {
@@ -44,36 +74,25 @@ async function performAutomatedCheck() {
     const pdfResult = await pdfResponse.json();
 
     const checkResult = {
-      timestamp: new Date(),
+      timestamp: new Date().toISOString(),
       pdfUrl: embassyData.pdfUrl,
       searchNumber: automationState.searchNumber,
       found: pdfResult.found,
-      matchCount: pdfResult.matchCount,
+      matchCount: pdfResult.matchCount || 0,
       error: pdfResult.error || null,
       success: !pdfResult.error,
       emailSent: false,
     };
 
-    // Update automation state
-    automationState.lastCheck = new Date();
-    automationState.nextCheck = new Date(Date.now() + 4 * 60 * 60 * 1000); // 4 hours from now
-    automationState.lastResult = checkResult;
-
-    // Add to history (keep last 50 checks)
-    automationState.checkHistory.unshift(checkResult);
-    if (automationState.checkHistory.length > 50) {
-      automationState.checkHistory = automationState.checkHistory.slice(0, 50);
-    }
-
-    console.log(
-      `Automated check completed. Number ${automationState.searchNumber} found: ${checkResult.found}`
-    );
-
     // Send email notification if number is found
     if (checkResult.found) {
       try {
         const emailResponse = await fetch(
-          `${process.env.VERCEL_URL || "http://localhost:3000"}/api/send-email`,
+          `${
+            process.env.VERCEL_URL
+              ? `https://${process.env.VERCEL_URL}`
+              : "http://localhost:3000"
+          }/api/send-email`,
           {
             method: "POST",
             headers: {
@@ -83,7 +102,7 @@ async function performAutomatedCheck() {
               type: "found",
               searchNumber: automationState.searchNumber,
               pdfUrl: embassyData.pdfUrl,
-              matchCount: pdfResult.matchCount,
+              matchCount: pdfResult.matchCount || 0,
               timestamp: checkResult.timestamp,
               contexts: pdfResult.contexts || [],
             }),
@@ -91,33 +110,43 @@ async function performAutomatedCheck() {
         );
 
         if (emailResponse.ok) {
-          console.log(
-            `✅ Email notification sent for found number ${automationState.searchNumber}`
-          );
+          console.log("✅ Manual check: Email notification sent");
           checkResult.emailSent = true;
         } else {
-          console.error("❌ Failed to send email notification");
+          console.error("❌ Manual check: Failed to send email notification");
           checkResult.emailSent = false;
         }
       } catch (emailError) {
-        console.error("❌ Email sending error:", emailError);
+        console.error("❌ Manual check: Email sending error:", emailError);
         checkResult.emailSent = false;
       }
     }
 
+    // Update state and history
+    automationState.lastCheck = new Date(checkResult.timestamp);
+    automationState.lastResult = checkResult;
+    automationState.checkHistory.unshift(checkResult);
+
+    // Keep last 50 checks
+    if (automationState.checkHistory.length > 50) {
+      automationState.checkHistory = automationState.checkHistory.slice(0, 50);
+    }
+
+    console.log(
+      `Manual check completed. Number ${automationState.searchNumber} found: ${checkResult.found}`
+    );
     return checkResult;
   } catch (error) {
-    console.error("Error in automated check:", error);
+    console.error("Error in manual check:", error);
 
     const errorResult = {
-      timestamp: new Date(),
+      timestamp: new Date().toISOString(),
       error: error instanceof Error ? error.message : "Unknown error",
       success: false,
       emailSent: false,
     };
 
-    automationState.lastCheck = new Date();
-    automationState.nextCheck = new Date(Date.now() + 4 * 60 * 60 * 1000);
+    automationState.lastCheck = new Date(errorResult.timestamp);
     automationState.lastResult = errorResult;
     automationState.checkHistory.unshift(errorResult);
 
@@ -128,65 +157,32 @@ async function performAutomatedCheck() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { action, searchNumber } = body;
+    const { action, result } = body;
 
-    if (action === "start") {
-      if (automationState.isRunning) {
-        return NextResponse.json(
-          {
-            error: "Automation is already running",
-          },
-          { status: 400 }
-        );
+    if (action === "store-result") {
+      // Store result from cron job
+      if (result) {
+        automationState.lastCheck = new Date(result.timestamp);
+        automationState.lastResult = result;
+        automationState.nextCheck = getNextCronTime();
+
+        // Add to history (keep last 50 checks)
+        automationState.checkHistory.unshift(result);
+        if (automationState.checkHistory.length > 50) {
+          automationState.checkHistory = automationState.checkHistory.slice(
+            0,
+            50
+          );
+        }
       }
-
-      // Update search number if provided
-      if (searchNumber) {
-        automationState.searchNumber = searchNumber;
-      }
-
-      // Perform immediate check
-      await performAutomatedCheck();
-
-      // Set up interval for every 4 hours (4 * 60 * 60 * 1000 ms)
-      automationState.intervalId = setInterval(
-        performAutomatedCheck,
-        4 * 60 * 60 * 1000
-      );
-      automationState.isRunning = true;
 
       return NextResponse.json({
         success: true,
-        message: "Automation started successfully",
-        searchNumber: automationState.searchNumber,
-        nextCheck: automationState.nextCheck,
-        lastResult: automationState.lastResult,
-      });
-    } else if (action === "stop") {
-      if (!automationState.isRunning) {
-        return NextResponse.json(
-          {
-            error: "Automation is not running",
-          },
-          { status: 400 }
-        );
-      }
-
-      if (automationState.intervalId) {
-        clearInterval(automationState.intervalId);
-        automationState.intervalId = null;
-      }
-
-      automationState.isRunning = false;
-      automationState.nextCheck = null;
-
-      return NextResponse.json({
-        success: true,
-        message: "Automation stopped successfully",
+        message: "Result stored successfully",
       });
     } else if (action === "check-now") {
-      // Perform immediate check
-      const result = await performAutomatedCheck();
+      // Perform immediate manual check
+      const result = await performManualCheck();
 
       return NextResponse.json({
         success: true,
@@ -196,7 +192,7 @@ export async function POST(request: NextRequest) {
     } else {
       return NextResponse.json(
         {
-          error: "Invalid action. Use 'start', 'stop', or 'check-now'",
+          error: "Invalid action. Use 'check-now' or 'store-result'",
         },
         { status: 400 }
       );

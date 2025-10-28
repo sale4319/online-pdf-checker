@@ -52,73 +52,6 @@ export default function Home() {
     }
   };
 
-  const handleStartAutomation = async () => {
-    setLoadingAutomation(true);
-    try {
-      const response = await fetch("/api/automation", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "start",
-          searchNumber: "590698",
-        }),
-      });
-      const data = await response.json();
-
-      if (data.success) {
-        setResult({
-          ...result,
-          autoSuccess: `Automation started! Will check for number 590698 every 4 hours.`,
-        });
-        fetchAutomationStatus();
-      } else {
-        setResult({
-          ...result,
-          error: data.error || "Failed to start automation",
-        });
-      }
-    } catch (error) {
-      setResult({
-        ...result,
-        error: "Failed to start automation",
-      });
-    } finally {
-      setLoadingAutomation(false);
-    }
-  };
-
-  const handleStopAutomation = async () => {
-    setLoadingAutomation(true);
-    try {
-      const response = await fetch("/api/automation", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "stop" }),
-      });
-      const data = await response.json();
-
-      if (data.success) {
-        setResult({
-          ...result,
-          autoSuccess: "Automation stopped successfully.",
-        });
-        fetchAutomationStatus();
-      } else {
-        setResult({
-          ...result,
-          error: data.error || "Failed to stop automation",
-        });
-      }
-    } catch (error) {
-      setResult({
-        ...result,
-        error: "Failed to stop automation",
-      });
-    } finally {
-      setLoadingAutomation(false);
-    }
-  };
-
   const handleCheckNow = async () => {
     setLoadingAutomation(true);
     try {
@@ -151,35 +84,35 @@ export default function Home() {
     }
   };
 
-  // const handleTestEmail = async () => {
-  //   setLoadingAutomation(true);
-  //   try {
-  //     const response = await fetch("/api/test-email", {
-  //       method: "POST",
-  //       headers: { "Content-Type": "application/json" },
-  //     });
-  //     const data = await response.json();
+  const handleTestEmail = async () => {
+    setLoadingAutomation(true);
+    try {
+      const response = await fetch("/api/test-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const data = await response.json();
 
-  //     if (data.success) {
-  //       setResult({
-  //         ...result,
-  //         emailTest: `✅ Test email sent successfully! Check sale4319@gmail.com inbox.`,
-  //       });
-  //     } else {
-  //       setResult({
-  //         ...result,
-  //         error: `Email test failed: ${data.details || data.error}`,
-  //       });
-  //     }
-  //   } catch (error) {
-  //     setResult({
-  //       ...result,
-  //       error: "Failed to test email configuration",
-  //     });
-  //   } finally {
-  //     setLoadingAutomation(false);
-  //   }
-  // };
+      if (data.success) {
+        setResult({
+          ...result,
+          emailTest: `✅ Test email sent successfully! Check sale4319@gmail.com inbox.`,
+        });
+      } else {
+        setResult({
+          ...result,
+          error: `Email test failed: ${data.details || data.error}`,
+        });
+      }
+    } catch (error) {
+      setResult({
+        ...result,
+        error: "Failed to test email configuration",
+      });
+    } finally {
+      setLoadingAutomation(false);
+    }
+  };
 
   // Load automation status on component mount
   useEffect(() => {
@@ -338,27 +271,23 @@ export default function Home() {
         {/* Automation Controls */}
         <div className="mt-8 p-6 bg-blue-50 border border-blue-200 rounded-lg">
           <h2 className="text-xl text-gray-500 font-semibold text-blue-900 mb-4">
-            Automated Monitoring for Number 590698
+            🕒 Automated Monitoring for Number 590698
           </h2>
           <p className="text-blue-700 mb-4 text-sm">
-            Set up automatic checking every 4 hours to monitor when your number
-            appears in the embassy PDF. You'll receive an email notification at
+            Automatic checking runs every 4 hours via Vercel Cron to monitor
+            when your number appears in the embassy PDF. You'll receive an email
+            notification at
             <strong className="text-blue-900"> sale4319@gmail.com</strong> when
-            the number is found.
-          </p>{" "}
+            the number is found.{" "}
+            <strong>Automation is always active and runs independently.</strong>
+          </p>
           {automationStatus && (
             <div className="mb-4 p-3 bg-white rounded border">
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div className="text-gray-500">
                   <strong>Status:</strong>
-                  <span
-                    className={`ml-1 ${
-                      automationStatus.isRunning
-                        ? "text-green-600"
-                        : "text-gray-600"
-                    }`}
-                  >
-                    {automationStatus.isRunning ? "Running" : "Stopped"}
+                  <span className="ml-1 text-green-600">
+                    🕒 Always Active (Vercel Cron)
                   </span>
                 </div>
                 <div className="text-gray-500">
@@ -411,45 +340,30 @@ export default function Home() {
               </div>
             </div>
           )}
-          <div className="flex gap-3 flex-wrap">
-            <button
-              onClick={handleStartAutomation}
-              disabled={loadingAutomation || automationStatus?.isRunning}
-              className="px-4 py-2 bg-green-600 text-white font-medium rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loadingAutomation ? "Starting..." : "Start Auto-Check"}
-            </button>
+          <div className="flex gap-3 flex-wrap justify-between">
+            <div className="flex gap-3 flex-wrap">
+              <button
+                onClick={handleCheckNow}
+                disabled={loadingAutomation}
+                className="px-4 py-2 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loadingAutomation ? "Checking..." : "Check Now"}
+              </button>
 
+              <button
+                onClick={fetchAutomationStatus}
+                disabled={loadingAutomation}
+                className="px-4 py-2 bg-gray-600 text-white font-medium rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Refresh Status
+              </button>
+            </div>
             <button
-              onClick={handleStopAutomation}
-              disabled={loadingAutomation || !automationStatus?.isRunning}
-              className="px-4 py-2 bg-red-600 text-white font-medium rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loadingAutomation ? "Stopping..." : "Stop Auto-Check"}
-            </button>
-
-            {/* <button
               onClick={handleTestEmail}
               disabled={loadingAutomation}
-              className="px-4 py-2 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 bg-light-blue-600 text-white font-medium rounded-md hover:bg-light-blue-700 focus:outline-none focus:ring-2 focus:ring-light-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loadingAutomation ? "Testing..." : "Test Email"}
-            </button> */}
-
-            <button
-              onClick={handleCheckNow}
-              disabled={loadingAutomation}
-              className="px-4 py-2 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loadingAutomation ? "Checking..." : "Check Now"}
-            </button>
-
-            <button
-              onClick={fetchAutomationStatus}
-              disabled={loadingAutomation}
-              className="px-4 py-2 bg-gray-600 text-white font-medium rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Refresh Status
+              📤
             </button>
           </div>
         </div>
@@ -462,12 +376,7 @@ export default function Home() {
                 <p>{result.autoFetchSuccess}</p>
               </div>
             )}
-            {result.autoSuccess && (
-              <div className="text-green-600 mb-4">
-                <h3 className="font-semibold">Automation:</h3>
-                <p>{result.autoSuccess}</p>
-              </div>
-            )}
+
             {result.manualCheck && (
               <div className="text-blue-600 mb-4">
                 <h3 className="font-semibold">Manual Check Result:</h3>
