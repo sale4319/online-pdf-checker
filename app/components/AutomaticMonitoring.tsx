@@ -176,7 +176,7 @@ const AutomaticMonitoring = () => {
               <span className="ml-1 text-green-600">🕒 Always Active</span>
             </div>
             <div className="text-gray-500">
-              <strong>Search Number:</strong> {automationStatus.searchNumber}
+              <strong>Search Number:</strong> 59**98
             </div>
             {automationStatus.lastCheck && (
               <div className="text-gray-500">

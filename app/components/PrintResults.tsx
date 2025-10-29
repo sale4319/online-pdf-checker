@@ -20,7 +20,7 @@ const PrintResults = ({ result }: PrintResultsProps) => {
         <div className="text-blue-600 mb-4">
           <h3 className="font-semibold">Manual Check Result:</h3>
           <p>
-            Number 590698{" "}
+            Number 59**98{" "}
             {result.manualCheck.found
               ? `✅ FOUND! (${result.manualCheck.matchCount} matches)`
               : "❌ Not found"}{" "}
