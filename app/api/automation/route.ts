@@ -77,37 +77,9 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { action, result } = body;
+    const { action } = body;
 
-    if (action === "store-result") {
-      // Store result from cron job
-      if (result) {
-        const checkResultData = {
-          ...result,
-          timestamp: new Date(result.timestamp),
-          source: "cron" as const,
-        };
-
-        // Save to database
-        const savedResult = await DatabaseService.addCheckResult(
-          checkResultData
-        );
-
-        // Update automation status
-        await DatabaseService.upsertAutomationStatus({
-          isRunning: true,
-          searchNumber: result.searchNumber || "590698",
-          lastCheck: checkResultData.timestamp,
-          nextCheck: getNextCronTime(),
-          lastResult: savedResult,
-        });
-
-        return NextResponse.json({
-          success: true,
-          message: "Result stored successfully in MongoDB",
-        });
-      }
-    } else if (action === "check-now") {
+    if (action === "check-now") {
       // Perform manual check
       const searchNumber = "590698";
 

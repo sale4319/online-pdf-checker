@@ -16,7 +16,8 @@
     "nodemailer": "^7.0.10",
     "pdf-extraction": "^1.0.2",
     "react": "19.2.0",
-    "react-dom": "19.2.0"
+    "react-dom": "19.2.0",
+    "server-only": "^0.0.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
