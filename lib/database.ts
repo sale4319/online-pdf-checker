@@ -26,7 +26,7 @@ export interface CheckResult {
   success: boolean;
   emailSent: boolean;
   contexts?: string[];
-  source: "manual" | "cron" | "auto" | "scheduled";
+  source: "manual" | "scheduled";
   createdAt: Date;
 }
 
@@ -106,17 +106,5 @@ export class DatabaseService {
     const collection = await getCheckHistoryCollection();
 
     return await collection.countDocuments();
-  }
-
-  static async getLastCheckBySource(
-    source: "manual" | "cron" | "auto"
-  ): Promise<CheckResult | null> {
-    const { getCheckHistoryCollection } = await import("./mongodb");
-    const collection = await getCheckHistoryCollection();
-
-    return await collection.findOne<CheckResult>(
-      { source },
-      { sort: { createdAt: -1 } }
-    );
   }
 }

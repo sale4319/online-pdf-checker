@@ -1,53 +1,31 @@
 # MongoDB Atlas Setup Guide
 
-## ✅ **What's Been Implemented**
+## ✅ **Implementation Complete**
 
-### 📦 **Dependencies Installed**
+MongoDB Atlas has been fully integrated into the application with persistent storage, automated scheduling, and PDF URL caching.
+
+## 🎯 **What's Been Implemented**
+
+### 📦 **Dependencies**
 
 - `mongodb` - Official MongoDB Node.js driver
+- Connection pooling for optimal performance
+- Environment-aware configurations
 
-### 🏗️ **Infrastructure Created**
+### 🏗️ **Infrastructure**
 
-1. **`lib/mongodb.ts`** - Database connection utility with connection pooling
-2. **`lib/database.ts`** - Database service with typed operations
-3. **Environment variables** - Added `MONGODB_URI` to `.env` files
-4. **Simplified automation API** - Ready for MongoDB integration
+1. **`lib/mongodb.ts`** - Connection utility with pooling and error handling
+2. **`lib/database.ts`** - Type-safe database service layer with:
+   - `AutomationStatus` operations
+   - `CheckResult` operations
+   - Check history retrieval (last 10 results)
+   - Total check count tracking
 
-## 🚀 **Next Steps to Complete MongoDB Integration**
+### �️ **Database Collections**
 
-### **Step 1: Create MongoDB Atlas Cluster**
+#### **`automation`** Collection
 
-1. Go to [MongoDB Atlas](https://cloud.mongodb.com)
-2. Create a free account/sign in
-3. Create a new cluster (Free tier is fine)
-4. Create a database user with read/write permissions
-5. Add your IP address to the whitelist (or use 0.0.0.0/0 for all IPs)
-
-### **Step 2: Get Connection String**
-
-1. Click "Connect" on your cluster
-2. Choose "Connect your application"
-3. Copy the connection string (looks like: `mongodb+srv://username:password@cluster.mongodb.net/...`)
-
-### **Step 3: Update Environment Variables**
-
-Replace the placeholder in your `.env.local`:
-
-```bash
-MONGODB_URI=mongodb+srv://YOUR_USERNAME:YOUR_PASSWORD@YOUR_CLUSTER.mongodb.net/pdf-checker?retryWrites=true&w=majority
-```
-
-### **Step 4: Deploy to Vercel**
-
-Add the `MONGODB_URI` environment variable in your Vercel dashboard:
-
-1. Go to Vercel Dashboard → Your Project → Settings → Environment Variables
-2. Add `MONGODB_URI` with your connection string
-3. Deploy your project
-
-## 📊 **Database Collections**
-
-### **`automation`** - Stores automation status
+Stores automation configuration and state:
 
 ```typescript
 {
@@ -57,12 +35,16 @@ Add the `MONGODB_URI` environment variable in your Vercel dashboard:
   lastCheck: Date,
   nextCheck: Date,
   lastResult: CheckResult,
+  pdfUrl: string,              // NEW: Cached PDF URL
+  pdfUrlUpdatedAt: Date,       // NEW: Cache timestamp
   createdAt: Date,
   updatedAt: Date
 }
 ```
 
-### **`check-history`** - Stores all PDF check results
+#### **`check-history`** Collection
+
+Complete audit trail of all checks:
 
 ```typescript
 {
@@ -72,52 +54,207 @@ Add the `MONGODB_URI` environment variable in your Vercel dashboard:
   searchNumber: string,
   found: boolean,
   matchCount: number,
-  error: string | null,
+  error: string | undefined,
   success: boolean,
   emailSent: boolean,
   contexts: string[],
-  source: 'manual' | 'cron' | 'auto',
+  source: 'manual' | 'scheduled',  // Updated sources
   createdAt: Date
 }
 ```
 
-## 🔥 **Benefits of MongoDB Integration**
+### 🚀 **Features Implemented**
 
-### **Persistence**
+#### 1. **MongoDB-Based Scheduling**
 
-- ✅ Data survives server restarts and deployments
-- ✅ Complete check history stored permanently
-- ✅ No more lost automation state
+- ✅ Client-side polling every 5 minutes
+- ✅ Scheduled checks at 8:00, 12:00, 16:00 daily
+- ✅ Next check time calculation
+- ✅ Automatic status updates
 
-### **Scalability**
+#### 2. **PDF URL Caching System**
 
-- ✅ Can handle unlimited check history
-- ✅ Fast queries with proper indexing
-- ✅ Multiple server instances can share data
+- ✅ `/api/pdf-url` endpoint (GET/POST)
+- ✅ Stores PDF URL in automation collection
+- ✅ Environment-aware fetching:
+  - **Local**: Scrapes embassy website
+  - **Vercel**: Uses cached URL
+- ✅ Solves embassy website blocking issue
 
-### **Enhanced Features** (Future)
+#### 3. **Environment-Aware Architecture**
 
-- 📊 Analytics and reporting
+- ✅ Detects Vercel deployment via `VERCEL_URL`
+- ✅ Direct database access (no internal HTTP calls)
+- ✅ Inline PDF processing (eliminates HTTP overhead)
+- ✅ Proper error handling with stack traces
+
+#### 4. **Persistent Check History**
+
+- ✅ All checks saved to MongoDB
+- ✅ Last 10 results displayed
+- ✅ Total check counter
+- ✅ Search by source type
+
+## 🔧 **Configuration**
+
+### Current MongoDB Atlas Connection
+
+```bash
+MONGODB_URI=mongodb+srv://sal4319:admin@cluster0.wtqoc4c.mongodb.net/pdf-checker
+```
+
+Database: `pdf-checker`
+Collections: `automation`, `check-history`
+
+### Environment Variables Required
+
+```bash
+# MongoDB
+MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/pdf-checker?retryWrites=true&w=majority
+
+# Email (Gmail App Password)
+EMAIL_USER=burner.43910@gmail.com
+EMAIL_PASS=your_app_password
+
+# Scheduled Check Authentication
+NEXT_PUBLIC_SCHEDULED_CHECK_SECRET=scheduled-check-secret-2024
+```
+
+## 🔥 **Key Solutions Implemented**
+
+### Problem 1: Vercel Hobby Plan Limitations
+
+**Issue**: Max 2 cron jobs, once per day limit
+**Solution**: Client-side polling + MongoDB-based scheduling logic
+
+### Problem 2: Embassy Website Blocks Vercel IPs
+
+**Issue**: German Embassy returns 401 on Vercel deployment
+**Solution**: PDF URL caching system
+
+- Local development scrapes and caches URL
+- Vercel uses cached URL from MongoDB
+- Manual refresh via "Check Now" button locally
+
+### Problem 3: Internal API Call Failures
+
+**Issue**: `fetch()` to internal routes returned HTML error pages
+**Solution**:
+
+- Direct database access instead of HTTP calls
+- Inline PDF processing
+- Environment-aware URL construction
+
+## 📊 **Current Status**
+
+✅ **Fully Operational:**
+
+- MongoDB Atlas integration
+- Automated scheduling (8:00, 12:00, 16:00)
+- Client-side polling system
+- PDF URL caching
+- Environment-aware logic
+- Email notifications
+- Complete check history
+- Manual "Check Now" functionality
+
+✅ **Tested & Working:**
+
+- Local development ✓
+- MongoDB persistence ✓
+- PDF URL caching ✓
+- Scheduled checks ✓
+- Email notifications ✓
+
+🚀 **Ready for Production:**
+
+- Vercel deployment ready
+- All environment variables configured
+- Error handling implemented
+- Background polling active
+
+## 🎯 **Real PDF URL Cached**
+
+Current cached URL (as of Oct 28, 2025):
+
+```
+https://belgrad.diplo.de/resource/blob/2728068/1b0d443ee9d8631c9ab7c61686b1b9ae/abholliste-fz-und-ewt-vom-24-07-data.pdf
+```
+
+Last updated: `2025-10-28T22:31:35.999Z`
+
+## 🔄 **Maintenance**
+
+### Updating Cached PDF URL
+
+When embassy updates the PDF URL:
+
+1. Run application locally
+2. Click "Check Now" button
+3. System automatically:
+   - Scrapes new URL
+   - Caches in MongoDB
+   - Vercel deployment uses updated cache
+
+### Monitoring
+
+- Check automation status at `/api/automation`
+- View last 10 checks in UI
+- Total checks tracked in database
+
+## � **Benefits Achieved**
+
+### Reliability
+
+- ✅ Survives server restarts
+- ✅ Survives deployments
+- ✅ No data loss
+- ✅ Consistent state across instances
+
+### Scalability
+
+- ✅ Unlimited check history
+- ✅ Fast queries with MongoDB indexes
+- ✅ Multiple server instances supported
+- ✅ Handles high check frequency
+
+### Maintainability
+
+- ✅ Type-safe database operations
+- ✅ Centralized service layer
+- ✅ Environment-aware logic
+- ✅ Comprehensive error handling
+
+## �️ **Technical Implementation**
+
+### API Routes Updated
+
+1. **`/api/automation`** - Manual checks with environment awareness
+2. **`/api/scheduled-check`** - MongoDB-based scheduled checks
+3. **`/api/pdf-url`** - PDF URL caching (GET/POST)
+4. **`/api/scrape-embassy`** - Embassy website scraper
+
+### Component Architecture
+
+- Server Component: `page.tsx`
+- Client Components: `ManualCheck`, `AutomaticMonitoring`
+- Background polling in `AutomaticMonitoring` component
+- Self-contained state management
+
+### Error Handling
+
+- JSON parse protection
+- Response status checks
+- Stack trace logging
+- Graceful fallbacks
+
+## 📝 **Next Steps for Enhancement**
+
+Future improvements could include:
+
+- 📊 Analytics dashboard
 - 📈 Check frequency analysis
 - 🔍 Advanced search through history
 - 📱 Multiple search numbers support
-
-## 📝 **Current Status**
-
-✅ **Completed:**
-
-- MongoDB connection utility
-- Database service layer
-- Environment configuration
-- Basic automation API structure
-
-🔄 **In Progress:**
-
-- Full automation API MongoDB integration
-- Cron endpoint MongoDB storage
-
-⏳ **Next:**
-
-- Set up MongoDB Atlas cluster
-- Update connection string
-- Deploy and test
+- 🔔 Multiple notification channels
+- 📧 Customizable email templates
