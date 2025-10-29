@@ -99,10 +99,6 @@ Complete audit trail of all checks:
 
 ### Current MongoDB Atlas Connection
 
-```bash
-MONGODB_URI=mongodb+srv://sal4319:admin@cluster0.wtqoc4c.mongodb.net/pdf-checker
-```
-
 Database: `pdf-checker`
 Collections: `automation`, `check-history`
 
@@ -113,11 +109,11 @@ Collections: `automation`, `check-history`
 MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/pdf-checker?retryWrites=true&w=majority
 
 # Email (Gmail App Password)
-EMAIL_USER=burner.43910@gmail.com
+EMAIL_USER=email_address@provider.com
 EMAIL_PASS=your_app_password
 
 # Scheduled Check Authentication
-NEXT_PUBLIC_SCHEDULED_CHECK_SECRET=scheduled-check-secret-2024
+NEXT_PUBLIC_SCHEDULED_CHECK_SECRET=your-secret-here
 ```
 
 ## 🔥 **Key Solutions Implemented**
@@ -172,16 +168,6 @@ NEXT_PUBLIC_SCHEDULED_CHECK_SECRET=scheduled-check-secret-2024
 - All environment variables configured
 - Error handling implemented
 - Background polling active
-
-## 🎯 **Real PDF URL Cached**
-
-Current cached URL (as of Oct 28, 2025):
-
-```
-https://belgrad.diplo.de/resource/blob/2728068/1b0d443ee9d8631c9ab7c61686b1b9ae/abholliste-fz-und-ewt-vom-24-07-data.pdf
-```
-
-Last updated: `2025-10-28T22:31:35.999Z`
 
 ## 🔄 **Maintenance**
 
