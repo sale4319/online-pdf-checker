@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-// @ts-ignore
-const extract = require("pdf-extraction");
+import extract from "pdf-extraction";
 
 export async function POST(request: NextRequest) {
   try {
@@ -42,8 +41,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if the response is a PDF
-    const contentType = response.headers.get('content-type');
-    if (!contentType || !contentType.includes('application/pdf')) {
+    const contentType = response.headers.get("content-type");
+    if (!contentType || !contentType.includes("application/pdf")) {
       return NextResponse.json(
         { error: "URL does not point to a PDF file" },
         { status: 400 }
@@ -109,8 +108,8 @@ export async function GET() {
         "POST a JSON body with pdfUrl and searchNumber parameters to search for specific numbers in a PDF from URL",
       example: {
         pdfUrl: "https://example.com/document.pdf",
-        searchNumber: "12345"
-      }
+        searchNumber: "12345",
+      },
     },
     { status: 200 }
   );

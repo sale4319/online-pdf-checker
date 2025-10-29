@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { DatabaseService } from "../../../lib/database";
+import extract from "pdf-extraction";
 
 // Calculate next scheduled check time (8:00, 12:00, or 16:00)
 function getNextCronTime(): Date {
@@ -152,10 +153,6 @@ export async function POST(request: NextRequest) {
         if (!pdfResponse.ok) {
           throw new Error(`Failed to fetch PDF: ${pdfResponse.status}`);
         }
-
-        // Import pdf-extraction directly
-        // @ts-ignore
-        const extract = require("pdf-extraction");
 
         const arrayBuffer = await pdfResponse.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);

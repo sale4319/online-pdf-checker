@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { DatabaseService } from "../../../lib/database";
+import extract from "pdf-extraction";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60; // Allow up to 60 seconds for this function
@@ -144,10 +145,6 @@ export async function GET(request: NextRequest) {
       if (!pdfResponse.ok) {
         throw new Error(`Failed to fetch PDF: ${pdfResponse.status}`);
       }
-
-      // Import pdf-extraction directly
-      // @ts-ignore
-      const extract = require("pdf-extraction");
 
       const arrayBuffer = await pdfResponse.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
