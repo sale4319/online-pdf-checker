@@ -29,17 +29,25 @@ function getNextScheduledTime(): Date {
 
 export async function GET(request: NextRequest) {
   try {
-    // Simple authentication - you can use a secret token
+    // Check authentication - allow both Vercel cron and client-side polling
     const authHeader = request.headers.get("authorization");
+    const userAgent = request.headers.get("user-agent") || "";
+    const isVercelCron = userAgent.includes("vercel-cron");
+
     const expectedSecret =
       process.env.SCHEDULED_CHECK_SECRET ||
       process.env.NEXT_PUBLIC_SCHEDULED_CHECK_SECRET;
 
-    if (authHeader !== `Bearer ${expectedSecret}`) {
+    // Allow Vercel cron or authenticated requests
+    if (!isVercelCron && authHeader !== `Bearer ${expectedSecret}`) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    console.log("🔍 Scheduled check triggered...");
+    console.log(
+      `🔍 Scheduled check triggered... (source: ${
+        isVercelCron ? "Vercel Cron" : "Client Polling"
+      })`
+    );
 
     // Get automation status from database
     const automationStatus = await DatabaseService.getAutomationStatus();
@@ -54,13 +62,18 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Check if it's time to run
+    // If called by Vercel Cron, always run the check (it's already scheduled at 12:00 and 16:00)
+    // If called manually, check if it's time based on MongoDB scheduling
     const now = new Date();
-    const nextCheck = automationStatus?.nextCheck
-      ? new Date(automationStatus.nextCheck)
-      : now;
+    const shouldRunCheck =
+      isVercelCron ||
+      (automationStatus?.nextCheck &&
+        now >= new Date(automationStatus.nextCheck));
 
-    if (now < nextCheck) {
+    if (!shouldRunCheck) {
+      const nextCheck = automationStatus?.nextCheck
+        ? new Date(automationStatus.nextCheck)
+        : getNextScheduledTime();
       const minutesUntilNext = Math.round(
         (nextCheck.getTime() - now.getTime()) / 60000
       );
@@ -73,7 +86,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    console.log("✅ Time to check! Performing automated PDF check...");
+    console.log("✅ Performing scheduled PDF check...");
 
     const searchNumber = "590698";
     let pdfUrl: string;

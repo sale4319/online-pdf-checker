@@ -27,53 +27,16 @@ const AutomaticMonitoring = () => {
   };
 
   // Load automation status on component mount
+  // Load automation status on component mount and refresh periodically
   useEffect(() => {
     fetchAutomationStatus();
-  }, []);
 
-  // Background polling to trigger scheduled checks
-  useEffect(() => {
-    const pollInterval = 5 * 60 * 1000; // Poll every 5 minutes
+    // Refresh status every 2 minutes to show results from Vercel Cron
+    const refreshInterval = setInterval(() => {
+      fetchAutomationStatus();
+    }, 2 * 60 * 1000);
 
-    const triggerScheduledCheck = async () => {
-      try {
-        const response = await fetch("/api/scheduled-check", {
-          headers: {
-            authorization: `Bearer ${
-              process.env.NEXT_PUBLIC_SCHEDULED_CHECK_SECRET ||
-              "your-secret-key"
-            }`,
-          },
-        });
-
-        // Check if response is ok before parsing JSON
-        if (!response.ok) {
-          console.error(
-            `Scheduled check failed with status: ${response.status}`
-          );
-          return;
-        }
-
-        const data = await response.json();
-
-        if (data.success) {
-          console.log("✅ Scheduled check completed:", data.message);
-          // The AutomaticMonitoring component will refresh its own status
-        } else {
-          console.log("ℹ️ Scheduled check:", data.message || data.error);
-        }
-      } catch (error) {
-        console.error("Failed to trigger scheduled check:", error);
-      }
-    };
-
-    // Run immediately on mount
-    triggerScheduledCheck();
-
-    // Then poll at intervals
-    const intervalId = setInterval(triggerScheduledCheck, pollInterval);
-
-    return () => clearInterval(intervalId);
+    return () => clearInterval(refreshInterval);
   }, []);
 
   const handleCheckNow = async () => {
@@ -162,9 +125,9 @@ const AutomaticMonitoring = () => {
         🕒 Automated Monitoring
       </h2>
       <p className="text-blue-700 mb-4 text-sm">
-        Automatic checking runs 3 times daily at 8:00, 12:00, and 16:00 to
-        monitor when the number appears in the embassy PDF. An email
-        notification will be sent to
+        Automatic checking runs 2 times daily at 12:00, and 16:00 to monitor
+        when the number appears in the embassy PDF. An email notification will
+        be sent to
         <strong className="text-blue-900"> sa****19@gmail.com</strong> when the
         number is found.{" "}
       </p>
